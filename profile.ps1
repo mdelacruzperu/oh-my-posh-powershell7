@@ -27,9 +27,9 @@ $Global:ModulesToInstall = @(
 ### SECTION 1: Oh My Posh User Management ###
 #############################################
 
-# Function: CheckRequirements
+# Function: Check-Requirements
 # Description: Validates that the script is running in the required environment.
-function CheckRequirements {
+function Check-Requirements {
     param (
         [switch]$Force, # If specified, forces the display of validation messages.
         [switch]$Silent
@@ -38,7 +38,7 @@ function CheckRequirements {
     # Step 1: Check PowerShell version
     if ($Force -or $PSVersionTable.PSVersion.Major -lt 7) {
         Write-Host "❌ This script requires PowerShell 7 or higher to function correctly." -ForegroundColor Red
-        Show-InstallationInstructions
+        Show-Installation-Instructions
         if (-not $Force) {
             exit
         }
@@ -48,9 +48,9 @@ function CheckRequirements {
     if (-not $Silent) { Write-Host "✔️  Environment requirements validated successfully." -ForegroundColor Green }
 }
 
-# Function: Install-OhMyPoshEnvironment
+# Function: Install-Environment
 # Description: Installs and configures the Oh My Posh environment for PowerShell.
-function Install-OhMyPoshEnvironment {
+function Install-Environment {
     Write-Host "Starting installation of Oh My Posh environment..." -ForegroundColor Cyan
 
     # Step 1: Load configuration (or create default)
@@ -98,7 +98,7 @@ function Set-Theme {
     $ThemePath = "$ThemeDirectory\$ThemeName.omp.json"
 
     if (-not (Test-Path $Global:BinaryPath)) {
-        Write-Host "Oh My Posh binary not found. Run 'Install-OhMyPoshEnvironment' to install it." -ForegroundColor Red
+        Write-Host "Oh My Posh binary not found. Run 'Install-Environment' to install it." -ForegroundColor Red
         return
     }
 
@@ -233,7 +233,7 @@ function List-Themes {
 
     if ($Remote) {
         # Fetch remote themes using the cache function
-        $RemoteThemes = Get-RemoteThemesCache
+        $RemoteThemes = Get-Remote-Themes-Cache
         if ($RemoteThemes.Count -gt 0) {
             Write-Host "Available remote themes:" -ForegroundColor Green
             # Display the list of remote themes
@@ -258,9 +258,9 @@ function List-Themes {
     }
 }
 
-# Function: SelfUpdate
+# Function: Self-Update
 # Description: Updates the PowerShell profile to the latest version from GitHub if there are changes.
-function SelfUpdate {
+function Self-Update {
     param (
         [string]$ProfileUrl = "https://raw.githubusercontent.com/mdelacruzperu/oh-my-posh-powershell7/main/profile.ps1"
     )
@@ -311,9 +311,9 @@ function SelfUpdate {
     }
 }
 
-# Function: Cleanup-OhMyPoshEnvironment
+# Function: Cleanup-Environment
 # Description: Removes the Oh My Posh environment, uninstalls required modules, and resets configurations.
-function Cleanup-OhMyPoshEnvironment {
+function Cleanup-Environment {
     Write-Host "Cleaning up the Oh My Posh environment..." -ForegroundColor Yellow
 
     # Step 1: Uninstall each module
@@ -394,7 +394,7 @@ function Cleanup-OhMyPoshEnvironment {
     Write-Host "  - Fonts removed: $((Test-Path $FontDirectory) -eq $false)" -ForegroundColor Green
     Write-Host "  - Themes removed: $((Test-Path $ThemeDirectory) -eq $false)" -ForegroundColor Green
     Write-Host "  - Configuration file removed: $((Test-Path $Global:ConfigFile) -eq $false)" -ForegroundColor Green
-    Write-Host "⚠️  Note: Oh My Posh binary was not removed. Use 'Remove-OhMyPoshBinary' if needed." -ForegroundColor Yellow
+    Write-Host "⚠️  Note: Oh My Posh binary was not removed. Use 'Remove-Posh-Binary' if needed." -ForegroundColor Yellow
 
     # Notify user and wait for confirmation
     Write-Host "`nThe terminal will now close to avoid inconsistencies. Please reopen to start fresh." -ForegroundColor Red
@@ -403,9 +403,9 @@ function Cleanup-OhMyPoshEnvironment {
     exit
 }
 
-# Function: Remove-OhMyPoshBinary
+# Function: Remove-Posh-Binary
 # Description: Removes the Oh My Posh binary and its containing folder if empty from the user's environment.
-function Remove-OhMyPoshBinary {
+function Remove-Posh-Binary {
     $BinaryFolder = Split-Path -Path $Global:BinaryPath -Parent  # Get the folder path
 
     if (Test-Path $Global:BinaryPath) {
@@ -446,14 +446,14 @@ function Remove-OhMyPoshBinary {
     exit
 }
 
-# Function: Update-OhMyPoshBinary
+# Function: Update-Posh-Binary
 # Description: Checks for the latest Oh My Posh binary and updates it if a new version is available.
-function Update-OhMyPoshBinary {
+function Update-Posh-Binary {
     $DownloadUrl = "https://github.com/JanDeDobbeleer/oh-my-posh/releases/latest/download/posh-windows-amd64.exe"
 
     try {
         if (-not (Test-Path $Global:BinaryPath)) {
-            Write-Host "Oh My Posh binary not found. Use 'Install-OhMyPoshEnvironment' to set up the environment." -ForegroundColor Red
+            Write-Host "Oh My Posh binary not found. Use 'Install-Environment' to set up the environment." -ForegroundColor Red
             return
         }
 
@@ -506,45 +506,41 @@ function Show-Help {
     Write-Host "`n=== Help: PowerShell Environment Commands ===`n" -ForegroundColor Cyan
 
     Write-Host "Environment Setup and Installation:" -ForegroundColor Yellow
-    Write-Host "  Install-OhMyPoshEnvironment   - Installs or updates Oh My Posh, required modules, fonts, and themes."
-    Write-Host "  Update-OhMyPoshBinary         - Checks for the latest Oh My Posh binary and updates it if available."
-    Write-Host "  Cleanup-OhMyPoshEnvironment   - Removes Oh My Posh and resets the configuration."
+    Write-Host "  Install-Environment           - Installs or updates Oh My Posh, required modules, fonts, and themes."
+    Write-Host "  Update-Posh-Binary            - Checks for the latest Oh My Posh binary and updates it if available."
+    Write-Host "  Cleanup-Environment           - Removes Oh My Posh and resets the configuration."
 
     Write-Host "`nTheme Management:" -ForegroundColor Yellow
     Write-Host "  Set-Theme -ThemeName <name>   - Applies a specified Oh My Posh theme. Downloads the theme if missing."
-    Write-Host "  Reset-Theme                  - Resets to the default PowerShell prompt (disables Oh My Posh)."
-    Write-Host "  Reactivate-Theme             - Reactivates the last configured Oh My Posh theme."
-    Write-Host "  List-Themes [-Remote]        - Lists available themes. Use '-Remote' to fetch remote themes from GitHub."
+    Write-Host "  Reset-Theme                   - Resets to the default PowerShell prompt (disables Oh My Posh)."
+    Write-Host "  Reactivate-Theme              - Reactivates the last configured Oh My Posh theme."
+    Write-Host "  List-Themes [-Remote]         - Lists available themes. Use '-Remote' to fetch remote themes from GitHub."
     
     Write-Host "`nConfiguration Management:" -ForegroundColor Yellow
-    Write-Host "  SelfUpdate                   - Updates the PowerShell profile to the latest version from GitHub."
-    Write-Host "  Remove-OhMyPoshBinary        - Removes the Oh My Posh binary from the system."
-    Write-Host "  CheckRequirements            - Validates that the environment meets all prerequisites for installation."
+    Write-Host "  Self-Update                   - Updates the PowerShell profile to the latest version from GitHub."
+    Write-Host "  Remove-Posh-Binary            - Removes the Oh My Posh binary from the system."
+    Write-Host "  Check-Requirements            - Validates that the environment meets all prerequisites for installation."
 
     Write-Host "`nUtilities:" -ForegroundColor Yellow
-    Write-Host "  Show-Help                    - Displays this help message."
-    Write-Host "  Get-PubIP                    - Retrieves the public IP address of your system."
-    Write-Host "  flushdns                     - Clears the DNS cache on your system."
-    Write-Host "  uptime                       - Displays the system's uptime and last boot time."
-    Write-Host "  sysinfo                      - Displays basic system information, such as OS version and memory."
+    Write-Host "  Show-Help                     - Displays this help message.  (Alias: SOS)"
+    Write-Host "  Get-Public-IP                 - Retrieves the public IP address of your system. (Alias: IP)"
+    Write-Host "  Flush-DNS                     - Clears the DNS cache on your system."
+    Write-Host "  Uptime                        - Displays the system's Uptime and last boot time."
+    Write-Host "  Get-System-Info               - Displays basic system information, such as OS version and memory. (Alias: sysinfo)"
 
     Write-Host "`n=== Quick Start Guide ===`n" -ForegroundColor Cyan
     Write-Host "1. Install PowerShell 7 or higher from https://github.com/PowerShell/PowerShell." -ForegroundColor Green
-    Write-Host "2. Run 'Install-OhMyPoshEnvironment' to set up Oh My Posh, fonts, and themes." -ForegroundColor Green
+    Write-Host "2. Run 'Install-Environment' to set up Oh My Posh, fonts, and themes." -ForegroundColor Green
     Write-Host "3. Apply a theme with 'Set-Theme -ThemeName <theme>'. Example: 'Set-Theme -ThemeName peru'." -ForegroundColor Green
     Write-Host "4. List available themes with 'List-Themes' or 'List-Themes -Remote'." -ForegroundColor Green
-    Write-Host "5. Update the profile anytime using 'SelfUpdate'." -ForegroundColor Green
+    Write-Host "5. Update the profile anytime using 'Self-Update'." -ForegroundColor Green
 
     Write-Host "`n=== End of Help ===`n" -ForegroundColor Cyan
 }
 
-####################################
-### SECTION 2: Support Functions ###
-####################################
-
-# Function: Test-OhMyPoshBinary
+# Function: Test-Posh-Binary
 # Description: Verifies if the Oh My Posh binary exists and is functional by executing it.
-function Test-OhMyPoshBinary {
+function Test-Posh-Binary {
     param (
         [switch]$Silent # Suppress messages if specified
     )
@@ -558,11 +554,15 @@ function Test-OhMyPoshBinary {
     } catch {
         if (-not $Silent) {
             Write-Host "⚠️  Oh My Posh binary not found or not functional!" -ForegroundColor Red
-            Write-Host "Run 'Install-OhMyPoshEnvironment' to set up the environment again." -ForegroundColor Yellow
+            Write-Host "Run 'Install-Environment' to set up the environment again." -ForegroundColor Yellow
         }
         return $false
     }
 }
+
+############################################
+### SECTION 2: Private Support Functions ###
+############################################
 
 # Function: Debug-Log
 # Description: Logs messages to the console if DebugMode is enabled.
@@ -749,9 +749,9 @@ function Setup-Themes {
     }
 }
 
-# Function: Show-InstallationInstructions
+# Function: Show-Installation-Instructions
 # Description: Provides instructions to install or update PowerShell 7 or later.
-function Show-InstallationInstructions {
+function Show-Installation-Instructions {
     Write-Host "" # Blank line for spacing
     Write-Host "⚠️  Please follow these steps to install or update PowerShell:" -ForegroundColor Yellow
     Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Green
@@ -770,9 +770,9 @@ function Show-InstallationInstructions {
     Write-Host "💡 Need help? Consult the documentation on the GitHub page or ask for support." -ForegroundColor Cyan
 }
 
-# Function: Get-RemoteThemesCache
+# Function: Get-Remote-Themes-Cache
 # Description: Retrieves the cached list of remote themes or updates the cache if outdated.
-function Get-RemoteThemesCache {
+function Get-Remote-Themes-Cache {
     param (
         [switch]$Silent
     )
@@ -859,9 +859,9 @@ function la {
     }
 }
 
-# Function: Get-PubIP
+# Function: Get-Public-IP
 # Description: Retrieves the public IP address of the system using OpenDNS servers.
-function Get-PubIP {
+function Get-Public-IP {
     try {
         (Resolve-DnsName myip.opendns.com -Server resolver1.opendns.com).IPAddress
     } catch {
@@ -869,16 +869,9 @@ function Get-PubIP {
     }
 }
 
-# Function: flushdns
-# Description: Clears the DNS cache on the system.
-function flushdns {
-	Clear-DnsClientCache
-	Write-Host "DNS has been flushed"
-}
-
-# Function: uptime
+# Function: Uptime
 # Description: Displays the system's uptime and the last boot time.
-function uptime {
+function Uptime {
     try {
         # Get the last boot time directly
         $bootTime = (Get-CimInstance -ClassName Win32_OperatingSystem).LastBootUpTime
@@ -894,9 +887,9 @@ function uptime {
     }
 }
 
-# Function: sysinfo
+# Function: Get-System-Info
 # Description: Displays basic system information, such as OS version, architecture, and memory.
-function sysinfo {
+function Get-System-Info {
     try {
         if (-not (Get-Module -Name CimCmdlets)) {
             Import-Module -Name CimCmdlets -ErrorAction Stop
@@ -919,8 +912,9 @@ function sysinfo {
 # Uset Get-Alias to check for existents aliases
 # ------------------------------------
 
-Set-Alias -Name ip -Value Get-PubIP
+Set-Alias -Name ip -Value Get-Public-IP
 Set-Alias -Name sos -Value Show-Help
+Set-Alias -Name sysinfo -Value Get-System-Info
 
 
 ############################
@@ -928,8 +922,8 @@ Set-Alias -Name sos -Value Show-Help
 ############################
 
 # Ensure the script is running on PowerShell 7 or later
-#CheckRequirements -Force
-CheckRequirements -Silent
+#Check-Requirements -Force
+Check-Requirements -Silent
 
 # Load configuration file
 $Config = Load-Config
@@ -938,7 +932,7 @@ $Config = Load-Config
 if (-not $Config.FileExists) {
     Write-Host "Welcome to the default PowerShell profile." -ForegroundColor Cyan
     Write-Host "Oh My Posh has not been configured." -ForegroundColor Yellow
-    Write-Host "Run 'Install-OhMyPoshEnvironment' to set up the environment." -ForegroundColor Green
+    Write-Host "Run 'Install-Environment' to set up the environment." -ForegroundColor Green
     return # Termina aquí porque no hay nada más que hacer sin configuración
 }
 
@@ -948,7 +942,7 @@ try {
 } catch {
     Write-Host "❌ This script requires PowerShell 7 or higher to function correctly." -ForegroundColor Red
     Write-Host "`n⚠️  Oh My Posh binary is missing or not functional!" -ForegroundColor Red
-    Write-Host "Run 'Install-OhMyPoshEnvironment' to reinstall the environment." -ForegroundColor Yellow
+    Write-Host "Run 'Install-Environment' to reinstall the environment." -ForegroundColor Yellow
     return # Termina aquí porque el binario es crítico
 }
 
@@ -967,6 +961,6 @@ if (-not $Config.ThemeName) {
         Write-Host "Oh My Posh environment loaded successfully." -ForegroundColor Green
     } catch {
         Write-Host "`n⚠️  Failed to load the configured theme '$($Config.ThemeName)'." -ForegroundColor Red
-        Write-Host "Ensure the theme exists or run 'Install-OhMyPoshEnvironment' to reconfigure." -ForegroundColor Yellow
+        Write-Host "Ensure the theme exists or run 'Install-Environment' to reconfigure." -ForegroundColor Yellow
     }
 }
