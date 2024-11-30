@@ -267,8 +267,8 @@ function SelfUpdate {
 
     Write-Host "Checking for updates..." -ForegroundColor Cyan
 
-    # Path to the current script
-    $CurrentScriptPath = $MyInvocation.MyCommand.Definition
+    # Get the path to the current script
+    $CurrentScriptPath = (Get-Command -Name $MyInvocation.MyCommand.Name).Source
 
     # Temporary path for the downloaded script
     $TempScriptPath = "$HOME\Downloads\install-profile.ps1"
@@ -279,6 +279,7 @@ function SelfUpdate {
         Write-Host "✔️ Latest version downloaded to $TempScriptPath" -ForegroundColor Green
 
         # Replace the current script with the downloaded version
+        Write-Host "Updating the current script..." -ForegroundColor Cyan
         Copy-Item -Path $TempScriptPath -Destination $CurrentScriptPath -Force
         Write-Host "✔️ Script updated successfully. Please restart the script to apply changes." -ForegroundColor Green
     } catch {
