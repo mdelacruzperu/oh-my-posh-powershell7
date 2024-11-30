@@ -262,16 +262,36 @@ function List-Themes {
 # Description: Updates the script to the latest version from GitHub.
 function SelfUpdate {
     param (
-        [string]$ScriptUrl = "https://raw.githubusercontent.com/mdelacruzperu/oh-my-posh-powershell7/main/install-profile.ps1"
+        [string]$ScriptUrl = "https://raw.githubusercontent.com/mdelacruzperu/oh-my-posh-powershell7/main/install-profile.ps1",
+        [string]$ManualPath # Optional: Specify the path manually if auto-detection fails
     )
 
     Write-Host "Checking for updates..." -ForegroundColor Cyan
 
     # Get the path to the current script
-    $CurrentScriptPath = (Get-Command -Name $MyInvocation.MyCommand.Name).Source
+    $CurrentScriptPath = $ManualPath
+
+    if (-not $CurrentScriptPath) {
+        try {
+            $CurrentScriptPath = (Get-Command -Name $MyInvocation.MyCommand.Name).Source
+        } catch {
+            # Handle case where script is running in memory (e.g., irm | iex)
+            Write-Host "⚠️ Script is running remotely. Creating a local copy..." -ForegroundColor Yellow
+            $CurrentScriptPath = "$HOME\Downloads\install-profile.ps1"
+            try {
+                Invoke-WebRequest -Uri $ScriptUrl -OutFile $CurrentScriptPath -ErrorAction Stop
+                Write-Host "✔️ Script saved locally at $CurrentScriptPath" -ForegroundColor Green
+            } catch {
+                Write-Host "❌ Failed to create a local copy of the script. Error: $_" -ForegroundColor Red
+                return
+            }
+        }
+    }
+
+    Write-Host "Current script path: $CurrentScriptPath" -ForegroundColor Green
 
     # Temporary path for the downloaded script
-    $TempScriptPath = "$HOME\Downloads\install-profile.ps1"
+    $TempScriptPath = "$HOME\Downloads\install-profile-temp.ps1"
 
     try {
         # Download the latest version from GitHub
