@@ -50,6 +50,19 @@ if ($Local) {
 # Step 4: Prepare the target path
 $TargetProfilePath = "$HOME\Documents\PowerShell\Microsoft.PowerShell_profile.ps1"
 $BackupProfilePath = "$TargetProfilePath.bak"
+$TargetDirectory = Split-Path -Path $TargetProfilePath -Parent
+
+# Ensure the target directory exists
+if (-not (Test-Path $TargetDirectory)) {
+    Write-Host "⚠️ Target directory does not exist. Creating it now..." -ForegroundColor Yellow
+    try {
+        New-Item -ItemType Directory -Path $TargetDirectory -Force | Out-Null
+        Write-Host "✔️ Target directory created: $TargetDirectory" -ForegroundColor Green
+    } catch {
+        Write-Host "❌ Failed to create target directory. Error: $_" -ForegroundColor Red
+        return
+    }
+}
 
 # Step 5: Check for existing profile
 $ProfileExists = Test-Path $TargetProfilePath
