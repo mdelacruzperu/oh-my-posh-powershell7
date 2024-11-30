@@ -108,10 +108,10 @@ Feel free to fork this repository, make improvements, and submit a pull request.
 
 ---
 
-## ☕ Support the project
+## Support the Project
+If you find this project useful, consider supporting it by [donating via PayPal](https://paypal.me/mdelacruzperu). Your support helps keep this project alive! 💙
 
-If you find this script useful, consider supporting the project by inviting us for a coffee:  
-[![Buy me a coffee](https://img.shields.io/badge/☕-Buy%20me%20a%20coffee-orange?style=flat&logo=buy-me-a-coffee)](https://www.buymeacoffee.com/mdelacruzperu)
+[![PayPal](https://img.shields.io/badge/💰-Donate%20via%20PayPal-blue?style=flat&logo=paypal)](https://paypal.me/mdelacruzperu)
 
 ---
 
