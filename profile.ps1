@@ -259,56 +259,55 @@ function List-Themes {
 }
 
 # Function: SelfUpdate
-# Description: Updates the script to the latest version from GitHub.
+# Description: Updates the PowerShell profile to the latest version from GitHub if there are changes.
 function SelfUpdate {
     param (
-        [string]$ScriptUrl = "https://raw.githubusercontent.com/mdelacruzperu/oh-my-posh-powershell7/main/install-profile.ps1",
-        [string]$ManualPath # Optional: Specify the path manually if auto-detection fails
+        [string]$ProfileUrl = "https://raw.githubusercontent.com/mdelacruzperu/oh-my-posh-powershell7/main/profile.ps1"
     )
 
     Write-Host "Checking for updates..." -ForegroundColor Cyan
 
-    # Get the path to the current script
-    $CurrentScriptPath = $ManualPath
+    # Path to the current profile
+    $CurrentProfilePath = "$HOME\Documents\PowerShell\Microsoft.PowerShell_profile.ps1"
+    $TempProfilePath = "$HOME\Downloads\profile-temp.ps1"
 
-    if (-not $CurrentScriptPath) {
-        try {
-            $CurrentScriptPath = (Get-Command -Name $MyInvocation.MyCommand.Name).Source
-        } catch {
-            # Handle case where script is running in memory (e.g., irm | iex)
-            Write-Host "⚠️ Script is running remotely. Creating a local copy..." -ForegroundColor Yellow
-            $CurrentScriptPath = "$HOME\Downloads\install-profile.ps1"
-            try {
-                Invoke-WebRequest -Uri $ScriptUrl -OutFile $CurrentScriptPath -ErrorAction Stop
-                Write-Host "✔️ Script saved locally at $CurrentScriptPath" -ForegroundColor Green
-            } catch {
-                Write-Host "❌ Failed to create a local copy of the script. Error: $_" -ForegroundColor Red
-                return
-            }
-        }
+    # Step 1: Download the latest profile from GitHub
+    try {
+        Invoke-WebRequest -Uri $ProfileUrl -OutFile $TempProfilePath -ErrorAction Stop
+        Write-Host "✔️ Latest profile downloaded to $TempProfilePath" -ForegroundColor Green
+    } catch {
+        Write-Host "❌ Failed to download the latest profile. Please check your internet connection." -ForegroundColor Red
+        return
     }
 
-    Write-Host "Current script path: $CurrentScriptPath" -ForegroundColor Green
+    # Step 2: Check if the current profile exists
+    if (-not (Test-Path $CurrentProfilePath)) {
+        Write-Host "⚠️ No existing profile detected. Installing the latest profile..." -ForegroundColor Yellow
+        Copy-Item -Path $TempProfilePath -Destination $CurrentProfilePath -Force
+        Write-Host "✔️ Profile installed successfully at $CurrentProfilePath" -ForegroundColor Green
+        Remove-Item -Path $TempProfilePath -Force
+        return
+    }
 
-    # Temporary path for the downloaded script
-    $TempScriptPath = "$HOME\Downloads\install-profile-temp.ps1"
+    # Step 3: Compare file hashes
+    $CurrentHash = Get-FileHash -Path $CurrentProfilePath -Algorithm SHA256
+    $TempHash = Get-FileHash -Path $TempProfilePath -Algorithm SHA256
 
+    if ($CurrentHash.Hash -eq $TempHash.Hash) {
+        Write-Host "✔️ Profile is already up to date. No update needed." -ForegroundColor Green
+        Remove-Item -Path $TempProfilePath -Force
+        return
+    }
+
+    # Step 4: Update the profile
+    Write-Host "Updating the profile..." -ForegroundColor Cyan
     try {
-        # Download the latest version from GitHub
-        Invoke-WebRequest -Uri $ScriptUrl -OutFile $TempScriptPath -ErrorAction Stop
-        Write-Host "✔️ Latest version downloaded to $TempScriptPath" -ForegroundColor Green
-
-        # Replace the current script with the downloaded version
-        Write-Host "Updating the current script..." -ForegroundColor Cyan
-        Copy-Item -Path $TempScriptPath -Destination $CurrentScriptPath -Force
-        Write-Host "✔️ Script updated successfully. Please restart the script to apply changes." -ForegroundColor Green
+        Copy-Item -Path $TempProfilePath -Destination $CurrentProfilePath -Force
+        Write-Host "✔️ Profile updated successfully at $CurrentProfilePath" -ForegroundColor Green
     } catch {
-        Write-Host "❌ Failed to update the script. Error: $_" -ForegroundColor Red
+        Write-Host "❌ Failed to update the profile. Error: $_" -ForegroundColor Red
     } finally {
-        # Cleanup: Remove the temporary file
-        if (Test-Path $TempScriptPath) {
-            Remove-Item -Path $TempScriptPath -Force
-        }
+        Remove-Item -Path $TempProfilePath -Force
     }
 }
 
