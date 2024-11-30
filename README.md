@@ -42,7 +42,7 @@ Before using this script, ensure you meet the following requirements:
 Run this one-liner in PowerShell 7 to download and execute the script:
 
 ```powershell
-irm "https://raw.githubusercontent.com/mdelacruzperu/oh-my-posh-powershell7/main/setup-posh.ps1" | iex
+irm "https://raw.githubusercontent.com/mdelacruzperu/oh-my-posh-powershell7/main/install-profile.ps1" | iex
 ```
 
 ### **Option 2: Clone and run**
