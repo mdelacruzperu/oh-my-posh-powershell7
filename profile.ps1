@@ -85,7 +85,7 @@ function Install-OhMyPoshEnvironment {
 }
 
 # Function: Set-Theme
-# Description: Applies a specified Oh My Posh theme using the binary.
+# Description: Applies a specified Oh My Posh theme using the binary and saves it to the configuration.
 function Set-Theme {
     param (
         [string]$ThemeName,
@@ -141,7 +141,20 @@ function Set-Theme {
     } catch {
         if (-not $Silent) {
             Write-Host "Failed to apply theme '$ThemeName'. Error: $_" -ForegroundColor Red
+            return
         }
+    }
+
+    # Save the theme to the configuration
+    try {
+        $Config = Load-Config
+        $Config.ThemeName = $ThemeName
+        Save-Config -Config $Config
+        if (-not $Silent) {
+            Write-Host "Theme '$ThemeName' saved to configuration." -ForegroundColor Green
+        }
+    } catch {
+        Write-Host "❌ Failed to save theme '$ThemeName' to configuration. Error: $_" -ForegroundColor Red
     }
 }
 
@@ -241,6 +254,39 @@ function List-Themes {
             }
         } else {
             Write-Host "Themes directory not found. No local themes available." -ForegroundColor Yellow
+        }
+    }
+}
+
+# Function: SelfUpdate
+# Description: Updates the script to the latest version from GitHub.
+function SelfUpdate {
+    param (
+        [string]$ScriptUrl = "https://raw.githubusercontent.com/mdelacruzperu/oh-my-posh-powershell7/main/install-profile.ps1"
+    )
+
+    Write-Host "Checking for updates..." -ForegroundColor Cyan
+
+    # Path to the current script
+    $CurrentScriptPath = $MyInvocation.MyCommand.Definition
+
+    # Temporary path for the downloaded script
+    $TempScriptPath = "$HOME\Downloads\install-profile.ps1"
+
+    try {
+        # Download the latest version from GitHub
+        Invoke-WebRequest -Uri $ScriptUrl -OutFile $TempScriptPath -ErrorAction Stop
+        Write-Host "✔️ Latest version downloaded to $TempScriptPath" -ForegroundColor Green
+
+        # Replace the current script with the downloaded version
+        Copy-Item -Path $TempScriptPath -Destination $CurrentScriptPath -Force
+        Write-Host "✔️ Script updated successfully. Please restart the script to apply changes." -ForegroundColor Green
+    } catch {
+        Write-Host "❌ Failed to update the script. Error: $_" -ForegroundColor Red
+    } finally {
+        # Cleanup: Remove the temporary file
+        if (Test-Path $TempScriptPath) {
+            Remove-Item -Path $TempScriptPath -Force
         }
     }
 }
