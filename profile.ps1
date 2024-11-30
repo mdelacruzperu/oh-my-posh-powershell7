@@ -501,20 +501,41 @@ function Update-OhMyPoshBinary {
 }
 
 # Function: Show-Help
-# Description: Displays a list of user-invocable commands for Oh My Posh management.
+# Description: Displays a detailed list of user-invocable commands for Oh My Posh management.
 function Show-Help {
-    Write-Host "`n### Available Commands for PowerShell Environment ###`n" -ForegroundColor Cyan
+    Write-Host "`n=== Help: PowerShell Environment Commands ===`n" -ForegroundColor Cyan
 
-    Write-Host "Oh My Posh Management:" -ForegroundColor Yellow
-    Write-Host "  Install-OhMyPoshEnvironment   - Installs or updates Oh My Posh and related components."
-    Write-Host "  Cleanup-OhMyPoshEnvironment   - Removes Oh My Posh and resets the environment."
-    Write-Host "  Set-Theme                    - Sets a specified Oh My Posh theme. Downloads if missing."
-    Write-Host "  Reset-Theme                  - Resets to the default PowerShell prompt."
+    Write-Host "Environment Setup and Installation:" -ForegroundColor Yellow
+    Write-Host "  Install-OhMyPoshEnvironment   - Installs or updates Oh My Posh, required modules, fonts, and themes."
+    Write-Host "  Update-OhMyPoshBinary         - Checks for the latest Oh My Posh binary and updates it if available."
+    Write-Host "  Cleanup-OhMyPoshEnvironment   - Removes Oh My Posh and resets the configuration."
+
+    Write-Host "`nTheme Management:" -ForegroundColor Yellow
+    Write-Host "  Set-Theme -ThemeName <name>   - Applies a specified Oh My Posh theme. Downloads the theme if missing."
+    Write-Host "  Reset-Theme                  - Resets to the default PowerShell prompt (disables Oh My Posh)."
     Write-Host "  Reactivate-Theme             - Reactivates the last configured Oh My Posh theme."
-    Write-Host "  List-Themes                  - Lists local or remote Oh My Posh themes."
-    Write-Host "  Remove-OhMyPoshBinary        - Removes the Oh My Posh binary."
+    Write-Host "  List-Themes [-Remote]        - Lists available themes. Use '-Remote' to fetch remote themes from GitHub."
+    
+    Write-Host "`nConfiguration Management:" -ForegroundColor Yellow
+    Write-Host "  SelfUpdate                   - Updates the PowerShell profile to the latest version from GitHub."
+    Write-Host "  Remove-OhMyPoshBinary        - Removes the Oh My Posh binary from the system."
+    Write-Host "  CheckRequirements            - Validates that the environment meets all prerequisites for installation."
 
-    Write-Host "`n### End of Help ###`n" -ForegroundColor Cyan
+    Write-Host "`nUtilities:" -ForegroundColor Yellow
+    Write-Host "  Show-Help                    - Displays this help message."
+    Write-Host "  Get-PubIP                    - Retrieves the public IP address of your system."
+    Write-Host "  flushdns                     - Clears the DNS cache on your system."
+    Write-Host "  uptime                       - Displays the system's uptime and last boot time."
+    Write-Host "  sysinfo                      - Displays basic system information, such as OS version and memory."
+
+    Write-Host "`n=== Quick Start Guide ===`n" -ForegroundColor Cyan
+    Write-Host "1. Install PowerShell 7 or higher from https://github.com/PowerShell/PowerShell." -ForegroundColor Green
+    Write-Host "2. Run 'Install-OhMyPoshEnvironment' to set up Oh My Posh, fonts, and themes." -ForegroundColor Green
+    Write-Host "3. Apply a theme with 'Set-Theme -ThemeName <theme>'. Example: 'Set-Theme -ThemeName peru'." -ForegroundColor Green
+    Write-Host "4. List available themes with 'List-Themes' or 'List-Themes -Remote'." -ForegroundColor Green
+    Write-Host "5. Update the profile anytime using 'SelfUpdate'." -ForegroundColor Green
+
+    Write-Host "`n=== End of Help ===`n" -ForegroundColor Cyan
 }
 
 ####################################
