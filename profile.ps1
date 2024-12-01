@@ -149,7 +149,7 @@ function Set-Theme {
     try {
         $Config = Load-Config
         $Config.ThemeName = $ThemeName
-        Save-Config -Config $Config
+        Save-Config -Silent -Config $Config
         if (-not $Silent) {
             Write-Host "Theme '$ThemeName' saved to configuration." -ForegroundColor Green
         }
@@ -181,7 +181,7 @@ function Reset-Theme {
         $Config = Load-Config
         $Config.ThemeDisabled = $true
         Debug-Log "Disabling theme in configuration."
-        Save-Config -Config $Config
+        Save-Config -Silent -Config $Config
         Write-Host "Configuration updated: Theme is now disabled." -ForegroundColor Green
         Debug-Log "Configuration saved successfully."
     } catch {
@@ -211,7 +211,7 @@ function Reactivate-Theme {
 
     # Enable the theme in the configuration
     $Config.ThemeDisabled = $false
-    Save-Config -Config $Config
+    Save-Config -Silent -Config $Config
     Write-Host "Theme configuration updated to enabled state." -ForegroundColor Green
 
     # Apply the last configured theme
@@ -788,6 +788,46 @@ function Get-Remote-Themes-Cache {
     }
 }
 
+# Function: Check-For-Update
+# Description: Checks for updates based on a configurable interval and prompts the user to confirm the update.
+function Check-For-Update {
+    param (
+        [int]$IntervalInDays = 1 # Default interval is 1 day (daily)
+    )
+
+    # Load the existing configuration
+    $Config = Load-Config
+
+    # Ensure the field for last update check exists in the configuration
+    if (-not $Config.PSObject.Properties.Match("LastUpdateCheck")) {
+        $Config | Add-Member -MemberType NoteProperty -Name LastUpdateCheck -Value (Get-Date).AddYears(-1).Date
+    }
+
+    # Parse dates
+    $LastUpdateCheck = [datetime]$Config.LastUpdateCheck
+    $NextUpdateCheck = $LastUpdateCheck.AddDays($IntervalInDays)
+    $Today = (Get-Date).Date
+
+    if ($Today -lt $NextUpdateCheck) {
+        return # No need to check yet
+    }
+
+    # Prompt the user to confirm the update
+    Write-Host "Checking for updates to the PowerShell profile script..." -ForegroundColor Cyan
+    $Response = Read-Host "Do you want to check for and apply updates? (y/n)"
+    if ($Response -match "^(y|yes)$") {
+        # Run the Self-Update function
+        Self-Update
+    } else {
+        Write-Host "Skipping update check." -ForegroundColor Yellow
+    }
+
+    # Update the configuration with today's date
+    $Config.LastUpdateCheck = $Today
+    Save-Config -Silent -Config $Config
+    Write-Host "Configuration updated with the latest check date." -ForegroundColor Green
+}
+
 #################################
 ### SECTION 3: User Utilities ###
 #################################
@@ -937,6 +977,7 @@ if (-not $Config.ThemeName) {
     try {
         Set-Theme -ThemeName $Config.ThemeName -Silent
         Write-Host "Oh My Posh environment loaded successfully." -ForegroundColor Green
+        #Check-For-Update -IntervalInDays 7
     } catch {
         Write-Host "`n⚠️  Failed to load the configured theme '$($Config.ThemeName)'." -ForegroundColor Red
         Write-Host "Ensure the theme exists or run 'Install-Environment' to reconfigure." -ForegroundColor Yellow

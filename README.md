@@ -63,7 +63,7 @@ If you prefer to review the script before running it:
 
 2. Run the script:
    ```powershell
-   ./install-profile.ps1
+   ./install-profile.ps1 -Local
    ```
 
 ---
