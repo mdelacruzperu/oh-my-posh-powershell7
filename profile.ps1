@@ -538,28 +538,6 @@ function Show-Help {
     Write-Host "`n=== End of Help ===`n" -ForegroundColor Cyan
 }
 
-# Function: Test-Posh-Binary
-# Description: Verifies if the Oh My Posh binary exists and is functional by executing it.
-function Test-Posh-Binary {
-    param (
-        [switch]$Silent # Suppress messages if specified
-    )
-
-    try {
-        & $Global:BinaryPath --version | Out-Null # Test binary functionality
-        if (-not $Silent) {
-            Write-Host "Oh My Posh binary is functional." -ForegroundColor Green
-        }
-        return $true
-    } catch {
-        if (-not $Silent) {
-            Write-Host "⚠️  Oh My Posh binary not found or not functional!" -ForegroundColor Red
-            Write-Host "Run 'Install-Environment' to set up the environment again." -ForegroundColor Yellow
-        }
-        return $false
-    }
-}
-
 ############################################
 ### SECTION 2: Private Support Functions ###
 ############################################
