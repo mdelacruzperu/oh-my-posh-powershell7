@@ -109,7 +109,6 @@ This script includes additional utilities for daily productivity:
 - `ll`: Lists directory contents with file icons.
 - `sysinfo`: Displays system information.
 - `uptime`: Shows system uptime and last boot time.
-- `flushdns`: Clears the DNS cache.
 - `ip`: Retrieves the public IP address of your system.
 
 ---
