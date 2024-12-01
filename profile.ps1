@@ -523,8 +523,9 @@ function Show-Help {
 
     Write-Host "`nUtilities:" -ForegroundColor Yellow
     Write-Host "  Show-Help                     - Displays this help message.  (Alias: SOS)"
+    Write-Host "  Touch                         - Creates an empty file (similar to the Unix `touch` command)."
+    Write-Host "  ll                            - Lists directory contents with icons (excludes hidden files by default)."
     Write-Host "  Get-Public-IP                 - Retrieves the public IP address of your system. (Alias: IP)"
-    Write-Host "  Flush-DNS                     - Clears the DNS cache on your system."
     Write-Host "  Uptime                        - Displays the system's Uptime and last boot time."
     Write-Host "  Get-System-Info               - Displays basic system information, such as OS version and memory. (Alias: sysinfo)"
 
