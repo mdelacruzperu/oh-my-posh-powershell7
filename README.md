@@ -81,7 +81,8 @@ If you prefer to review the script before running it:
 
 ## 🖼 Preview
 
-> Add screenshots or GIFs showing the terminal before and after running the script, highlighting the customization.
+![Terminal Example #1](images/image-1.png "Example 1")
+![Terminal Example #2](images/image-2.png "Example 2")
 
 ---
 
