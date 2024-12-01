@@ -82,7 +82,7 @@ If you prefer to review the script before running it:
 ## 🖼 Preview
 
 ![Terminal Example #1](images/image-1.png "Example 1")
-![Terminal Example #2](images/image-2.png "Example 2")
+![Terminal Example #2](images/image-2.1.png "Example 2")
 
 ---
 
