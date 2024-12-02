@@ -2,7 +2,7 @@
 ### Organized Configuration for PowerShell Environment ###
 ### Developed collaboratively with OpenAI Assistant ###
 
-$DebugMode = $true
+$DebugMode = $false
 
 ### Debugging Functions:
 ### - Debug-Log "Any message you need to log for debugging purposes."
@@ -101,20 +101,16 @@ function Set-Theme {
         [switch]$Silent
     )
 
-    # Import required modules only once per session
-    if (-not $Global:ModulesImported) {
-        Import-Required-Modules -Silent
-        $Global:ModulesImported = $true
-    }
-    Debug-Log "Required modules imported."
-
-    if (-not $Global:ThemesValidated) {
-        if (-not (Test-Path $Global:ThemeDirectory)) {
+    # Ensure the themes directory exists using try-catch
+    Measure-Time -OperationName "Validate-ThemesDirectory" -Action {
+        try {
             New-Item -ItemType Directory -Path $Global:ThemeDirectory -Force | Out-Null
+            Debug-Log "Themes directory ensured: $Global:ThemeDirectory"
+        } catch {
+            Debug-Log "Themes directory already exists or could not be created: $Global:ThemeDirectory"
         }
         $Global:ThemesValidated = $true
     }
-    Debug-Log "Themes directory validated: $Global:ThemeDirectory"
 
     # Skip applying if the theme is already active
     if ($Global:CurrentTheme -eq $ThemeName) {
@@ -122,32 +118,39 @@ function Set-Theme {
         return
     }
 
-    # Validate theme file if not cached
+    # Ensure the theme file exists using try-catch
     $ThemePath = "$Global:ThemeDirectory\$ThemeName.omp.json"
-
-    if (-not $Global:CachedThemes -or -not $Global:CachedThemes.Contains($ThemeName)) {
-        if (-not (Test-Path $ThemePath)) {
-            $ThemeUrl = "https://raw.githubusercontent.com/JanDeDobbeleer/oh-my-posh/main/themes/$ThemeName.omp.json"
-            Invoke-WebRequest -Uri $ThemeUrl -OutFile $ThemePath -ErrorAction Stop
+    Measure-Time -OperationName "Validate-ThemeFile" -Action {
+        try {
+            if (-not (Test-Path $ThemePath)) {
+                $ThemeUrl = "https://raw.githubusercontent.com/JanDeDobbeleer/oh-my-posh/main/themes/$ThemeName.omp.json"
+                Invoke-WebRequest -Uri $ThemeUrl -OutFile $ThemePath -ErrorAction Stop
+                Debug-Log "Theme downloaded: $ThemePath"
+            }
+        } catch {
+            Debug-Log "Theme '$ThemeName' already exists or download failed: $ThemePath"
         }
         if (-not $Global:CachedThemes) { $Global:CachedThemes = @() }
         $Global:CachedThemes += $ThemeName
     }
-    Debug-Log "Theme file validated: $ThemePath"
 
     Debug-Log "Theme directory: $Global:ThemeDirectory"
     Debug-Log "Theme path: $ThemePath"
 
     # Apply the theme using Oh My Posh binary
-    & $Global:BinaryPath init pwsh --config $ThemePath | Invoke-Expression
-    $Global:CurrentTheme = $ThemeName
-    Debug-Log "Theme applied successfully: $ThemeName"
+    Measure-Time -OperationName "Apply-Theme" -Action {
+        & $Global:BinaryPath init pwsh --config $ThemePath | Invoke-Expression
+        $Global:CurrentTheme = $ThemeName
+        Debug-Log "Theme applied successfully: $ThemeName"
+    }
 
     # Save the theme to configuration
-    $Config = Get-Config
-    $Config.ThemeName = $ThemeName
-    Save-Config -Silent -Config $Config
-    Debug-Log "Theme configuration saved: $ThemeName"
+    Measure-Time -OperationName "Save-ThemeConfig" -Action {
+        $Config = Get-Config
+        $Config.ThemeName = $ThemeName
+        Save-Config -Silent -Config $Config
+        Debug-Log "Theme configuration saved: $ThemeName"
+    }
 }
 
 # Function: Reset-Theme
@@ -396,18 +399,16 @@ function Cleanup-Environment {
 # Function: Test-Binary
 # Description: Validates that the Oh My Posh binary is functional.
 function Test-Binary {
-    Measure-Time -OperationName "Test-Binary" -Action {
-        if (-not $Global:BinaryValidated) {
-            try {
-                # Try executing the binary to check its functionality
-                & $Global:BinaryPath --version | Out-Null
-                $Global:BinaryValidated = $true
-                Debug-Log "Binary validated successfully: $Global:BinaryPath"
-            } catch {
-                Write-Host "❌ Oh My Posh binary is missing or not functional!" -ForegroundColor Red
-                Write-Host "Run 'Install-Environment' to reinstall the environment." -ForegroundColor Yellow
-                throw
-            }
+    if (-not $Global:BinaryValidated) {
+        try {
+            # Try executing the binary to check its functionality
+            & $Global:BinaryPath --version | Out-Null
+            $Global:BinaryValidated = $true
+            Debug-Log "Binary validated successfully: $Global:BinaryPath"
+        } catch {
+            Write-Host "❌ Oh My Posh binary is missing or not functional!" -ForegroundColor Red
+            Write-Host "Run 'Install-Environment' to reinstall the environment." -ForegroundColor Yellow
+            throw
         }
     }
 }
@@ -686,22 +687,26 @@ function Import-Required-Modules {
         [switch]$Silent
     )
 
+    if ($Global:ModulesImported) {
+        return
+    }
+    
     foreach ($Module in $Global:ModulesToInstall) {
-        if (-not (Get-Module -Name $Module.Name)) {
-            try {
-                Import-Module -Name $Module.Name -ErrorAction Stop
-                if (-not $Silent) {
-                    Write-Host "Module '$($Module.Name)' imported successfully." -ForegroundColor Green
-                }
-            } catch {
-                if (-not $Silent) {
-                    Write-Host "Failed to import module '$($Module.Name)'. Ensure it is installed correctly." -ForegroundColor Red
-                }
+        try {
+            # Attempt to import the module directly
+            Import-Module -Name $Module.Name -ErrorAction Stop
+            if (-not $Silent -or $DebugMode) {
+                Write-Host "Module '$($Module.Name)' imported successfully." -ForegroundColor Green
             }
-        } elseif (-not $Silent) {
-            Write-Host "Module '$($Module.Name)' is already imported." -ForegroundColor Green
+        } catch {
+            # Handle the error gracefully and inform the user
+            if (-not $Silent -or $DebugMode) {
+                Write-Host "Failed to import module '$($Module.Name)'. Ensure it is installed or accessible." -ForegroundColor Red
+            }
         }
     }
+    
+    $Global:ModulesImported = $true
 }
 
 # Function: Install-Themes
@@ -888,6 +893,8 @@ function ll {
         [switch]$ShowHidden
     )
 
+    Import-Required-Modules
+
     try {
         Get-ChildItem -Path $Path -Force:$ShowHidden | Sort-Object -Property Name | ForEach-Object {
             if ($_.Attributes -match "Hidden") {
@@ -908,6 +915,8 @@ function la {
         [string]$Path = "."
     )
 
+    Import-Required-Modules
+    
     try {
         Get-ChildItem -Path $Path -Force | Sort-Object -Property Name | ForEach-Object {
             $_
@@ -999,7 +1008,7 @@ Measure-Time -OperationName "Startup-Process" -Action {
 
     # Validate binary existence only if configuration exists
     try {
-        Test-Binary
+        Measure-Time -OperationName "Test-Binary" -Action { Test-Binary }
     } catch {
         Write-Host "❌ This script requires PowerShell 7 or higher to function correctly." -ForegroundColor Red
         Write-Host "`n⚠️  Oh My Posh binary is missing or not functional!" -ForegroundColor Red
@@ -1039,4 +1048,7 @@ Measure-Time -OperationName "Startup-Process" -Action {
             Write-Host "`n⚠️  Failed to check for updates. Please verify your configuration or internet connection." -ForegroundColor Red
         }
     }
+
+    # Loading Required Modules
+    Measure-Time -OperationName "Check-For-Updates" -Action { Import-Required-Modules -Silent }
 }
