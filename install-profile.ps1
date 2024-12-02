@@ -1,7 +1,8 @@
 # install-profile.ps1 - Installs the PowerShell profile.
 
 param(
-    [switch]$Local   # Use this switch for local installation (use file in the same directory).
+    [switch]$Local,   # Use this switch for local installation (use file in the same directory).
+    [switch]$Force   # Use this switch to avoid user confirmation.
 )
 
 Write-Host "=== PowerShell Profile Installer ===" -ForegroundColor Cyan
@@ -80,10 +81,12 @@ Write-Host "Target profile: $TargetProfilePath" -ForegroundColor Cyan
 if ($ProfileExists) {
     Write-Host "Backup will be created at: $BackupProfilePath" -ForegroundColor Yellow
 }
-$response = Read-Host "Do you want to proceed with the installation? (yes/no)"
-if ($response -notin @("yes", "y")) {
-    Write-Host "Installation canceled by user." -ForegroundColor Yellow
-    return
+if ( -not $Force ) {
+    $response = Read-Host "Do you want to proceed with the installation? (yes/no)"
+    if ($response -notin @("yes", "y")) {
+        Write-Host "Installation canceled by user." -ForegroundColor Yellow
+        return
+    }
 }
 
 # Step 7: Backup existing profile (if any)

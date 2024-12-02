@@ -2,9 +2,11 @@
 ### Organized Configuration for PowerShell Environment ###
 ### Developed collaboratively with OpenAI Assistant ###
 
-### Casos de Prueba para el Script Oh My Posh
+$DebugMode = $true
 
-$DebugMode = $false
+### Debugging Functions:
+### - Debug-Log "Any message you need to log for debugging purposes."
+### - Measure-Time -OperationName "Identifier" -Action { ... code to measure execution time ... }
 
 if ($DebugMode) {
     Write-Host "#######################################" -ForegroundColor Red
@@ -97,70 +99,53 @@ function Set-Theme {
         [switch]$Silent
     )
 
-    Import-RequiredModules -Silent
+    # Import required modules only once per session
+    if (-not $Global:ModulesImported) {
+        Import-RequiredModules -Silent
+        $Global:ModulesImported = $true
+    }
+    Debug-Log "Required modules imported."
 
     $ThemeDirectory = [System.Environment]::GetFolderPath("MyDocuments") + "\PowerShell\Themes"
     $ThemePath = "$ThemeDirectory\$ThemeName.omp.json"
 
-    if (-not (Test-Path $Global:BinaryPath)) {
-        Write-Host "Oh My Posh binary not found. Run 'Install-Environment' to install it." -ForegroundColor Red
+    # Skip validations if already cached
+    if (-not $Global:ThemesValidated) {
+        if (-not (Test-Path $ThemeDirectory)) {
+            New-Item -ItemType Directory -Path $ThemeDirectory -Force | Out-Null
+        }
+        $Global:ThemesValidated = $true
+    }
+    Debug-Log "Themes directory validated: $ThemeDirectory"
+
+    # Skip applying if the theme is already active
+    if ($Global:CurrentTheme -eq $ThemeName) {
+        Debug-Log "Theme '$ThemeName' is already active. Skipping binary execution."
         return
     }
 
-    # Ensure Themes directory exists
-    if (-not (Test-Path $ThemeDirectory)) {
-        Write-Host "Themes directory not found. Creating it now..." -ForegroundColor Yellow
-        try {
-            New-Item -ItemType Directory -Path $ThemeDirectory -Force | Out-Null
-            Write-Host "Themes directory created successfully." -ForegroundColor Green
-        } catch {
-            Write-Host "Failed to create Themes directory. Error: $_" -ForegroundColor Red
-            return
-        }
-    }
-
-    # Check if the theme file exists
-    if (-not (Test-Path $ThemePath)) {
-        Write-Host "Theme '$ThemeName' not found locally. Attempting to download it..." -ForegroundColor Yellow
-        try {
+    # Validate theme file if not cached
+    if (-not $Global:CachedThemes -or -not $Global:CachedThemes.Contains($ThemeName)) {
+        if (-not (Test-Path $ThemePath)) {
             $ThemeUrl = "https://raw.githubusercontent.com/JanDeDobbeleer/oh-my-posh/main/themes/$ThemeName.omp.json"
             Invoke-WebRequest -Uri $ThemeUrl -OutFile $ThemePath -ErrorAction Stop
-            Write-Host "Theme '$ThemeName' downloaded successfully." -ForegroundColor Green
-        } catch {
-            Write-Host "Failed to download theme '$ThemeName'. Ensure the theme name is correct and check your internet connection." -ForegroundColor Red
-            Write-Host "`nHelpful Resources:" -ForegroundColor Cyan
-            Write-Host "  - Visit the Oh My Posh Theme Gallery to explore available themes:" -ForegroundColor Green
-            Write-Host "    https://ohmyposh.dev/docs/themes" -ForegroundColor Yellow
-            Write-Host "  - List local themes with: 'List-Themes'" -ForegroundColor Green
-            Write-Host "  - List remote themes with: 'List-Themes -Remote'" -ForegroundColor Green
-            return
         }
+        if (-not $Global:CachedThemes) { $Global:CachedThemes = @() }
+        $Global:CachedThemes += $ThemeName
     }
+    Debug-Log "Theme file validated: $ThemePath"
 
-    # Apply the theme
-    try {
-        & $Global:BinaryPath init pwsh --config $ThemePath | Invoke-Expression
-        if (-not $Silent) {
-            Write-Host "Theme '$ThemeName' applied successfully." -ForegroundColor Green
-        }
-    } catch {
-        if (-not $Silent) {
-            Write-Host "Failed to apply theme '$ThemeName'. Error: $_" -ForegroundColor Red
-            return
-        }
-    }
+    # Apply the theme using Oh My Posh binary
+    & $Global:BinaryPath init pwsh --config $ThemePath | Invoke-Expression
+    $Global:CurrentTheme = $ThemeName
+    Debug-Log "Theme applied successfully: $ThemeName"
 
-    # Save the theme to the configuration
-    try {
-        $Config = Get-Config
-        $Config.ThemeName = $ThemeName
-        Save-Config -Silent -Config $Config
-        if (-not $Silent) {
-            Write-Host "Theme '$ThemeName' saved to configuration." -ForegroundColor Green
-        }
-    } catch {
-        Write-Host "❌ Failed to save theme '$ThemeName' to configuration. Error: $_" -ForegroundColor Red
-    }
+    # Save the theme to configuration
+    $Config = Get-Config
+    $Config.ThemeName = $ThemeName
+    Save-Config -Silent -Config $Config
+
+    Debug-Log "Operation 'Set-Theme' completed in $($ExecutionTime.TotalMilliseconds)ms."
 }
 
 # Function: Reset-Theme
@@ -560,29 +545,19 @@ function Debug-Log {
 }
 
 # Function: Get-Config
-# Description: Loads the configuration from a JSON file or returns a default configuration with a flag indicating file existence.
+# Measures time to load configuration.
 function Get-Config {
-
-    # If the configuration file exists, load it
     if (Test-Path $Global:ConfigFile) {
         try {
-            $Config = Get-Content -Path $Global:ConfigFile | ConvertFrom-Json
-            $Config | Add-Member -MemberType NoteProperty -Name FileExists -Value $true -Force
-            return $Config
+            # Lee el archivo JSON y lo convierte a un objeto PowerShell
+            return Get-Content -Path $Global:ConfigFile | ConvertFrom-Json
         } catch {
-            Write-Host "Failed to load configuration. Using default configuration." -ForegroundColor Red
-        }
-    } else {
-        # If the file doesn't exist or fails to load, return a default configuration
-        $DefaultConfig = [PSCustomObject]@{
-            ThemeName     = "peru"
-            IsConfigured  = $false
-            ThemeDisabled = $true
-            FileExists    = $false
+            # Maneja errores y carga configuración por defecto
+            Write-Host "Failed to load config. Using defaults." -ForegroundColor Red
         }
     }
-
-    return $DefaultConfig
+    # Configuración por defecto si no existe el archivo
+    return [PSCustomObject]@{ ThemeName = "peru"; IsConfigured = $false; ThemeDisabled = $true }
 }
 
 # Function: Save-Config
@@ -855,6 +830,25 @@ function Test-For-Update {
     }
 }
 
+# Helper: Measure Execution Time
+function Measure-Time {
+    param (
+        [string]$OperationName,
+        [ScriptBlock]$Action
+    )
+    $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+    try {
+        &$Action
+    } catch {
+        Write-Host "Error in operation '$OperationName': $_" -ForegroundColor Red
+    } finally {
+        $stopwatch.Stop()
+        if ($DebugMode) {
+            Write-Host "[MEASURE] Operation '$OperationName' completed in $($stopwatch.ElapsedMilliseconds)ms." -ForegroundColor DarkGray
+        }
+    }
+}
+
 #################################
 ### SECTION 3: User Utilities ###
 #################################
@@ -966,56 +960,66 @@ Set-Alias -Name sysinfo -Value Get-System-Info
 ### SECTION 4: Startup
 ############################
 
-# Ensure the script is running on PowerShell 7 or later
-#Check-Requirements -Force
-Check-Requirements -Silent
+# Measure overall startup time
+Measure-Time -OperationName "Startup-Process" -Action {
+    # Ensure the script is running on PowerShell 7 or later
+    Measure-Time -OperationName "Check-Requirements" -Action {
+        Check-Requirements -Silent
+    }
 
-# Load configuration file
-$Config = Get-Config
+    # Load configuration file once
+    $Config = Measure-Time -OperationName "Get-Config" -Action { Get-Config }
 
-# Caso 1: No hay configuración, guía al usuario a instalar
-if (-not $Config.FileExists) {
-    Write-Host "Welcome to the default PowerShell profile." -ForegroundColor Cyan
-    Write-Host "Oh My Posh has not been configured." -ForegroundColor Yellow
-    Write-Host "Run 'Install-Environment' to set up the environment." -ForegroundColor Green
-    return # Termina aquí porque no hay nada más que hacer sin configuración
-}
+    # Case 1: No configuration, guide user to install
+    if (-not $Config.FileExists) {
+        Write-Host "Welcome to the default PowerShell profile." -ForegroundColor Cyan
+        Write-Host "Oh My Posh has not been configured." -ForegroundColor Yellow
+        Write-Host "Run 'Install-Environment' to set up the environment." -ForegroundColor Green
+        return # Termina aquí porque no hay nada más que hacer sin configuración
+    }
 
-# Validar existencia del binario solo si hay configuración
-try {
-    & "$HOME\.oh-my-posh\oh-my-posh.exe" --version | Out-Null
-} catch {
-    Write-Host "❌ This script requires PowerShell 7 or higher to function correctly." -ForegroundColor Red
-    Write-Host "`n⚠️  Oh My Posh binary is missing or not functional!" -ForegroundColor Red
-    Write-Host "Run 'Install-Environment' to reinstall the environment." -ForegroundColor Yellow
-    return # Termina aquí porque el binario es crítico
-}
+    # Validate binary existence only if configuration exists
+    Measure-Time -OperationName "Validate-Binary" -Action {
+        try {
+            & "$HOME\.oh-my-posh\oh-my-posh.exe" --version | Out-Null
+        } catch {
+            Write-Host "❌ This script requires PowerShell 7 or higher to function correctly." -ForegroundColor Red
+            Write-Host "`n⚠️  Oh My Posh binary is missing or not functional!" -ForegroundColor Red
+            Write-Host "Run 'Install-Environment' to reinstall the environment." -ForegroundColor Yellow
+            return # Termina aquí porque el binario es crítico
+        }
+    }
 
-# Caso 2: Configuración existente pero tema deshabilitado
-if ($Config.ThemeDisabled -eq $true) {
-    Write-Host "Theme is currently disabled. Use 'Reactivate-Theme' to enable it again." -ForegroundColor Yellow
-    return
-}
-
-# Caso 3: Configuración válida, intenta cargar el tema
-if (-not $Config.ThemeName) {
-    Write-Host "No theme configured. Using default PowerShell prompt." -ForegroundColor Yellow
-} else {
-    try {
-        # Intentar cargar el tema
-        Set-Theme -ThemeName $Config.ThemeName -Silent
-        Write-Host "Oh My Posh environment loaded successfully." -ForegroundColor Green
-    } catch {
-        Write-Host "`n⚠️  Failed to load the configured theme '$($Config.ThemeName)'." -ForegroundColor Red
-        Write-Host "Ensure the theme exists or run 'Install-Environment' to reconfigure." -ForegroundColor Yellow
-        # Salir antes de ejecutar cualquier otra lógica, ya que el tema es crítico
+    # Case 2: Configuration exists but theme is disabled
+    if ($Config.ThemeDisabled -eq $true) {
+        Write-Host "Theme is currently disabled. Use 'Reactivate-Theme' to enable it again." -ForegroundColor Yellow
         return
     }
 
-    try {
-        # Intentar ejecutar la verificación de actualizaciones
-        Test-For-Update -IntervalInDays 7
-    } catch {
-        Write-Host "`n⚠️  Failed to check for updates. Please verify your configuration or internet connection." -ForegroundColor Red
+    # Case 3: Valid configuration, attempt to load the theme
+    Measure-Time -OperationName "Load-Theme" -Action {
+        if (-not $Config.ThemeName) {
+            Write-Host "No theme configured. Using default PowerShell prompt." -ForegroundColor Yellow
+        } else {
+            try {
+                # Load the theme using the existing configuration
+                Set-Theme -ThemeName $Config.ThemeName -Silent
+                Write-Host "Oh My Posh environment loaded successfully." -ForegroundColor Green
+            } catch {
+                Write-Host "`n⚠️  Failed to load the configured theme '$($Config.ThemeName)'." -ForegroundColor Red
+                Write-Host "Ensure the theme exists or run 'Install-Environment' to reconfigure." -ForegroundColor Yellow
+                # Exit here since the theme is critical
+                return
+            }
+        }
+    }
+
+    # Attempt to run update checks
+    Measure-Time -OperationName "Check-For-Updates" -Action {
+        try {
+            Test-For-Update -IntervalInDays 7 -Config $Config
+        } catch {
+            Write-Host "`n⚠️  Failed to check for updates. Please verify your configuration or internet connection." -ForegroundColor Red
+        }
     }
 }
