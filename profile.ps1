@@ -79,9 +79,14 @@ function Install-Environment {
     Save-Config -Config $Config
 
     Write-Host "Oh My Posh environment installation complete!" -ForegroundColor Green
-    Write-Host "To use the custom fonts, navigate to the font folder and install them manually:" -ForegroundColor Cyan
+
+    Write-Host "Apply the installed theme with: 'Set-Theme -ThemeName peru' if not active." -ForegroundColor Cyan    
+    Write-Host "To use the custom fonts, please install them manually by navigating to the font folder:" -ForegroundColor Cyan
     Write-Host "  C:\Users\<YourUser>\Documents\PowerShell\NerdFonts" -ForegroundColor Yellow
-    Write-Host "Apply the installed theme with: 'Set-Theme -ThemeName peru' if not active." -ForegroundColor Cyan
+    Write-Host "After installing the fonts, open your terminal settings and set the font to 'CascadyaCove Nerd Font' or another Nerd Font." -ForegroundColor Cyan
+    Write-Host "This will enable icons and additional visual enhancements in the terminal." -ForegroundColor Green
+
+    Write-Host "`nTip: Run 'Show-Help' to explore available commands and start familiarizing yourself with the features." -ForegroundColor Magenta
 }
 
 # Function: Set-Theme
