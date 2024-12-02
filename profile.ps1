@@ -54,7 +54,7 @@ function Install-Environment {
     Write-Host "Starting installation of Oh My Posh environment..." -ForegroundColor Cyan
 
     # Step 1: Load configuration (or create default)
-    $Config = Load-Config
+    $Config = Get-Config
     $Config.IsConfigured = $true
     $Config.ThemeDisabled = $false
     $Config.ThemeName = "peru" 
@@ -69,7 +69,7 @@ function Install-Environment {
     Install-NerdFonts
 
     # Step 5: Download default themes
-    Setup-Themes
+    Install-Themes
 
     # Step 6: Apply the default theme
     Set-Theme -ThemeName $Config.ThemeName
@@ -152,7 +152,7 @@ function Set-Theme {
 
     # Save the theme to the configuration
     try {
-        $Config = Load-Config
+        $Config = Get-Config
         $Config.ThemeName = $ThemeName
         Save-Config -Silent -Config $Config
         if (-not $Silent) {
@@ -183,7 +183,7 @@ function Reset-Theme {
 
         # Step 2: Update configuration to disable themes
         Debug-Log "Loading configuration for update."
-        $Config = Load-Config
+        $Config = Get-Config
         $Config.ThemeDisabled = $true
         Debug-Log "Disabling theme in configuration."
         Save-Config -Silent -Config $Config
@@ -208,7 +208,7 @@ function Reactivate-Theme {
     Write-Host "Reactivating the last configured theme..." -ForegroundColor Cyan
 
     # Load configuration and ensure it's valid
-    $Config = Load-Config
+    $Config = Get-Config
     if (-not $Config.ThemeName) {
         Write-Host "No theme was previously configured. Use 'Set-Theme' to apply a new theme." -ForegroundColor Yellow
         return
@@ -559,9 +559,9 @@ function Debug-Log {
     }
 }
 
-# Function: Load-Config
+# Function: Get-Config
 # Description: Loads the configuration from a JSON file or returns a default configuration with a flag indicating file existence.
-function Load-Config {
+function Get-Config {
 
     # If the configuration file exists, load it
     if (Test-Path $Global:ConfigFile) {
@@ -709,9 +709,9 @@ function Import-RequiredModules {
     }
 }
 
-# Function: Setup-Themes
+# Function: Install-Themes
 # Description: Ensures themes are available by downloading missing ones.
-function Setup-Themes {
+function Install-Themes {
     $ThemeDirectory = [System.Environment]::GetFolderPath("MyDocuments") + "\PowerShell\Themes"
     if (-not (Test-Path $ThemeDirectory)) {
         New-Item -ItemType Directory -Path $ThemeDirectory | Out-Null
@@ -794,44 +794,65 @@ function Get-Remote-Themes-Cache {
     }
 }
 
-# Function: Check-For-Update
+# Function: Test-For-Update
 # Description: Checks for updates based on a configurable interval and prompts the user to confirm the update.
-function Check-For-Update {
+function Test-For-Update {
     param (
         [int]$IntervalInDays = 1 # Default interval is 1 day (daily)
     )
 
-    # Load the existing configuration
-    $Config = Load-Config
+    Debug-Log "Starting Test-For-Update..."
 
-    # Ensure the field for last update check exists in the configuration
-    if (-not $Config.PSObject.Properties.Match("LastUpdateCheck")) {
-        $Config | Add-Member -MemberType NoteProperty -Name LastUpdateCheck -Value (Get-Date).AddYears(-1).Date
+    try {
+        # Load the existing configuration
+        Debug-Log "Loading configuration..."
+        $Config = Get-Config
+
+        # Ensure the field for last update check exists in the configuration
+        Debug-Log "Verifying LastUpdateCheck field..."
+        if (-not $Config.PSObject.Properties.Match("LastUpdateCheck") -or -not $Config.LastUpdateCheck) {
+            Debug-Log "LastUpdateCheck missing or null. Initializing with a default value..."
+            $DefaultDate = (Get-Date).AddYears(-1).Date
+            $Config | Add-Member -MemberType NoteProperty -Name LastUpdateCheck -Value $DefaultDate -Force
+        }
+
+        # Parse dates
+        $LastUpdateCheck = [datetime]$Config.LastUpdateCheck
+        $NextUpdateCheck = $LastUpdateCheck.AddDays($IntervalInDays)
+        $Today = (Get-Date).Date
+
+        Debug-Log "LastUpdateCheck: $LastUpdateCheck"
+        Debug-Log "NextUpdateCheck: $NextUpdateCheck"
+        Debug-Log "Today's Date: $Today"
+
+        if ($Today -lt $NextUpdateCheck) {
+            Debug-Log "Update check not needed. Skipping..."
+            return # No need to check yet
+        }
+
+        # Prompt the user to confirm the update
+        Debug-Log "Prompting user for update confirmation..."
+        Write-Host "Checking for updates to the PowerShell profile script..." -ForegroundColor Cyan
+        $Response = Read-Host "Do you want to check for and apply updates? (y/n)"
+        if ($Response -match "^(y|yes)$") {
+            Debug-Log "User confirmed update. Running Self-Update..."
+            Self-Update
+        } else {
+            Debug-Log "User declined update. Skipping..."
+            Write-Host "Skipping update check." -ForegroundColor Yellow
+        }
+
+        # Update the configuration with today's date
+        Debug-Log "Updating configuration with today's date..."
+        $Config.LastUpdateCheck = $Today
+        Save-Config -Silent -Config $Config
+        Debug-Log "Configuration updated successfully."
+        Write-Host "Configuration updated with the latest check date." -ForegroundColor Green
+    } catch {
+        Debug-Log "Error in Test-For-Update: $_"
+        Write-Host "⚠️  Failed to check for updates. Please verify your configuration or internet connection." -ForegroundColor Red
+        throw $_  # Re-throw the exception for further handling
     }
-
-    # Parse dates
-    $LastUpdateCheck = [datetime]$Config.LastUpdateCheck
-    $NextUpdateCheck = $LastUpdateCheck.AddDays($IntervalInDays)
-    $Today = (Get-Date).Date
-
-    if ($Today -lt $NextUpdateCheck) {
-        return # No need to check yet
-    }
-
-    # Prompt the user to confirm the update
-    Write-Host "Checking for updates to the PowerShell profile script..." -ForegroundColor Cyan
-    $Response = Read-Host "Do you want to check for and apply updates? (y/n)"
-    if ($Response -match "^(y|yes)$") {
-        # Run the Self-Update function
-        Self-Update
-    } else {
-        Write-Host "Skipping update check." -ForegroundColor Yellow
-    }
-
-    # Update the configuration with today's date
-    $Config.LastUpdateCheck = $Today
-    Save-Config -Silent -Config $Config
-    Write-Host "Configuration updated with the latest check date." -ForegroundColor Green
 }
 
 #################################
@@ -950,7 +971,7 @@ Set-Alias -Name sysinfo -Value Get-System-Info
 Check-Requirements -Silent
 
 # Load configuration file
-$Config = Load-Config
+$Config = Get-Config
 
 # Caso 1: No hay configuración, guía al usuario a instalar
 if (-not $Config.FileExists) {
@@ -981,11 +1002,20 @@ if (-not $Config.ThemeName) {
     Write-Host "No theme configured. Using default PowerShell prompt." -ForegroundColor Yellow
 } else {
     try {
+        # Intentar cargar el tema
         Set-Theme -ThemeName $Config.ThemeName -Silent
         Write-Host "Oh My Posh environment loaded successfully." -ForegroundColor Green
-        #Check-For-Update -IntervalInDays 7
     } catch {
         Write-Host "`n⚠️  Failed to load the configured theme '$($Config.ThemeName)'." -ForegroundColor Red
         Write-Host "Ensure the theme exists or run 'Install-Environment' to reconfigure." -ForegroundColor Yellow
+        # Salir antes de ejecutar cualquier otra lógica, ya que el tema es crítico
+        return
+    }
+
+    try {
+        # Intentar ejecutar la verificación de actualizaciones
+        Test-For-Update -IntervalInDays 7
+    } catch {
+        Write-Host "`n⚠️  Failed to check for updates. Please verify your configuration or internet connection." -ForegroundColor Red
     }
 }
