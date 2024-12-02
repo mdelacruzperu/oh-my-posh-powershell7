@@ -19,6 +19,8 @@ if ($DebugMode) {
 $Global:BinaryPath = "$HOME\.oh-my-posh\oh-my-posh.exe"
 $Global:ConfigFile = [System.Environment]::GetFolderPath("MyDocuments") + "\PowerShell\EnvironmentConfig.json"
 $Global:CacheFile = [System.Environment]::GetFolderPath("MyDocuments") + "\PowerShell\RemoteThemesCache.json"
+$Global:ThemeDirectory = [System.Environment]::GetFolderPath("MyDocuments") + "\PowerShell\Themes"
+
 # Global Lists
 $Global:DefaultThemes = @("peru", "agnoster")
 $Global:ModulesToInstall = @(
@@ -101,22 +103,18 @@ function Set-Theme {
 
     # Import required modules only once per session
     if (-not $Global:ModulesImported) {
-        Import-RequiredModules -Silent
+        Import-Required-Modules -Silent
         $Global:ModulesImported = $true
     }
     Debug-Log "Required modules imported."
 
-    $ThemeDirectory = [System.Environment]::GetFolderPath("MyDocuments") + "\PowerShell\Themes"
-    $ThemePath = "$ThemeDirectory\$ThemeName.omp.json"
-
-    # Skip validations if already cached
     if (-not $Global:ThemesValidated) {
-        if (-not (Test-Path $ThemeDirectory)) {
-            New-Item -ItemType Directory -Path $ThemeDirectory -Force | Out-Null
+        if (-not (Test-Path $Global:ThemeDirectory)) {
+            New-Item -ItemType Directory -Path $Global:ThemeDirectory -Force | Out-Null
         }
         $Global:ThemesValidated = $true
     }
-    Debug-Log "Themes directory validated: $ThemeDirectory"
+    Debug-Log "Themes directory validated: $Global:ThemeDirectory"
 
     # Skip applying if the theme is already active
     if ($Global:CurrentTheme -eq $ThemeName) {
@@ -125,6 +123,8 @@ function Set-Theme {
     }
 
     # Validate theme file if not cached
+    $ThemePath = "$Global:ThemeDirectory\$ThemeName.omp.json"
+
     if (-not $Global:CachedThemes -or -not $Global:CachedThemes.Contains($ThemeName)) {
         if (-not (Test-Path $ThemePath)) {
             $ThemeUrl = "https://raw.githubusercontent.com/JanDeDobbeleer/oh-my-posh/main/themes/$ThemeName.omp.json"
@@ -135,6 +135,9 @@ function Set-Theme {
     }
     Debug-Log "Theme file validated: $ThemePath"
 
+    Debug-Log "Theme directory: $Global:ThemeDirectory"
+    Debug-Log "Theme path: $ThemePath"
+
     # Apply the theme using Oh My Posh binary
     & $Global:BinaryPath init pwsh --config $ThemePath | Invoke-Expression
     $Global:CurrentTheme = $ThemeName
@@ -144,8 +147,7 @@ function Set-Theme {
     $Config = Get-Config
     $Config.ThemeName = $ThemeName
     Save-Config -Silent -Config $Config
-
-    Debug-Log "Operation 'Set-Theme' completed in $($ExecutionTime.TotalMilliseconds)ms."
+    Debug-Log "Theme configuration saved: $ThemeName"
 }
 
 # Function: Reset-Theme
@@ -216,9 +218,8 @@ function List-Themes {
     )
 
     # Local themes directory
-    $ThemeDirectory = [System.Environment]::GetFolderPath("MyDocuments") + "\PowerShell\Themes"
-    if (-not (Test-Path $ThemeDirectory)) {
-        New-Item -ItemType Directory -Path $ThemeDirectory | Out-Null
+    if (-not (Test-Path $Global:ThemeDirectory)) {
+        New-Item -ItemType Directory -Path $Global:ThemeDirectory | Out-Null
     }
 
     if ($Remote) {
@@ -233,8 +234,8 @@ function List-Themes {
         }
     } else {
         # List local themes
-        if (Test-Path $ThemeDirectory) {
-            $LocalThemes = Get-ChildItem -Path $ThemeDirectory -Filter *.omp.json | ForEach-Object { $_.BaseName }
+        if (Test-Path $Global:ThemeDirectory) {
+            $LocalThemes = Get-ChildItem -Path $Global:ThemeDirectory -Filter *.omp.json | ForEach-Object { $_.BaseName }
             if ($LocalThemes.Count -gt 0) {
                 Write-Host "Available local themes:" -ForegroundColor Green
                 # Display the list of local themes
@@ -327,7 +328,6 @@ function Cleanup-Environment {
 
     # Step 2: Remove fonts and themes
     $FontDirectory = "$HOME\Documents\PowerShell\NerdFonts"
-    $ThemeDirectory = [System.Environment]::GetFolderPath("MyDocuments") + "\PowerShell\Themes"
 
     if (Test-Path $FontDirectory) {
         Write-Host "Removing downloaded fonts..." -ForegroundColor Cyan
@@ -341,10 +341,10 @@ function Cleanup-Environment {
         Write-Host "No fonts found to remove." -ForegroundColor Cyan
     }
 
-    if (Test-Path $ThemeDirectory) {
+    if (Test-Path $Global:ThemeDirectory) {
         Write-Host "Removing downloaded themes..." -ForegroundColor Cyan
         try {
-            Remove-Item -Path $ThemeDirectory -Recurse -Force -ErrorAction Stop
+            Remove-Item -Path $Global:ThemeDirectory -Recurse -Force -ErrorAction Stop
             Write-Host "Themes removed successfully." -ForegroundColor Green
         } catch {
             Write-Host "Failed to remove themes. Error: $_" -ForegroundColor Red
@@ -382,7 +382,7 @@ function Cleanup-Environment {
     # Final cleanup message
     Write-Host "`nCleanup Summary:" -ForegroundColor Cyan
     Write-Host "  - Fonts removed: $((Test-Path $FontDirectory) -eq $false)" -ForegroundColor Green
-    Write-Host "  - Themes removed: $((Test-Path $ThemeDirectory) -eq $false)" -ForegroundColor Green
+    Write-Host "  - Themes removed: $((Test-Path $Global:ThemeDirectory) -eq $false)" -ForegroundColor Green
     Write-Host "  - Configuration file removed: $((Test-Path $Global:ConfigFile) -eq $false)" -ForegroundColor Green
     Write-Host "⚠️  Note: Oh My Posh binary was not removed. Use 'Remove-Posh-Binary' if needed." -ForegroundColor Yellow
 
@@ -391,6 +391,25 @@ function Cleanup-Environment {
     Write-Host "Press any key to continue and close the terminal..." -ForegroundColor Yellow
     [void][System.Console]::ReadKey($true)  # Wait for any key press
     exit
+}
+
+# Function: Test-Binary
+# Description: Validates that the Oh My Posh binary is functional.
+function Test-Binary {
+    Measure-Time -OperationName "Test-Binary" -Action {
+        if (-not $Global:BinaryValidated) {
+            try {
+                # Try executing the binary to check its functionality
+                & $Global:BinaryPath --version | Out-Null
+                $Global:BinaryValidated = $true
+                Debug-Log "Binary validated successfully: $Global:BinaryPath"
+            } catch {
+                Write-Host "❌ Oh My Posh binary is missing or not functional!" -ForegroundColor Red
+                Write-Host "Run 'Install-Environment' to reinstall the environment." -ForegroundColor Yellow
+                throw
+            }
+        }
+    }
 }
 
 # Function: Remove-Posh-Binary
@@ -540,7 +559,8 @@ function Debug-Log {
         [string]$Message
     )
     if ($DebugMode) {
-        Write-Host "[DEBUG] $Message" -ForegroundColor DarkGray
+        $LineNumber = $MyInvocation.ScriptLineNumber
+        Write-Host "[DEBUG] (Line $LineNumber) $Message" -ForegroundColor DarkGray
     }
 }
 
@@ -659,9 +679,9 @@ function Install-NerdFonts {
     }
 }
 
-# Function: Import-RequiredModules
+# Function: Import-Required-Modules
 # Description: Ensures all required modules are imported into the session.
-function Import-RequiredModules {
+function Import-Required-Modules {
     param (
         [switch]$Silent
     )
@@ -687,13 +707,12 @@ function Import-RequiredModules {
 # Function: Install-Themes
 # Description: Ensures themes are available by downloading missing ones.
 function Install-Themes {
-    $ThemeDirectory = [System.Environment]::GetFolderPath("MyDocuments") + "\PowerShell\Themes"
-    if (-not (Test-Path $ThemeDirectory)) {
-        New-Item -ItemType Directory -Path $ThemeDirectory | Out-Null
+    if (-not (Test-Path $Global:ThemeDirectory)) {
+        New-Item -ItemType Directory -Path $Global:ThemeDirectory | Out-Null
     }
 
     foreach ($Theme in $Global:DefaultThemes) {
-        $ThemePath = "$ThemeDirectory\$Theme.omp.json"
+        $ThemePath = "$Global:ThemeDirectory\$Theme.omp.json"
         if (-not (Test-Path $ThemePath)) {
             Write-Host "Downloading theme: $Theme..." -ForegroundColor Cyan
             try {
@@ -979,15 +998,13 @@ Measure-Time -OperationName "Startup-Process" -Action {
     }
 
     # Validate binary existence only if configuration exists
-    Measure-Time -OperationName "Validate-Binary" -Action {
-        try {
-            & "$HOME\.oh-my-posh\oh-my-posh.exe" --version | Out-Null
-        } catch {
-            Write-Host "❌ This script requires PowerShell 7 or higher to function correctly." -ForegroundColor Red
-            Write-Host "`n⚠️  Oh My Posh binary is missing or not functional!" -ForegroundColor Red
-            Write-Host "Run 'Install-Environment' to reinstall the environment." -ForegroundColor Yellow
-            return # Termina aquí porque el binario es crítico
-        }
+    try {
+        Test-Binary
+    } catch {
+        Write-Host "❌ This script requires PowerShell 7 or higher to function correctly." -ForegroundColor Red
+        Write-Host "`n⚠️  Oh My Posh binary is missing or not functional!" -ForegroundColor Red
+        Write-Host "Run 'Install-Environment' to reinstall the environment." -ForegroundColor Yellow
+        return # Termina aquí porque el binario es crítico
     }
 
     # Case 2: Configuration exists but theme is disabled
