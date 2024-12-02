@@ -15,14 +15,16 @@ if ($DebugMode) {
     Write-Host "#######################################" -ForegroundColor Red
 }
 
-# Global Files Paths
-$Global:BinaryPath = "$HOME\.oh-my-posh\oh-my-posh.exe"
-$Global:ConfigFile = [System.Environment]::GetFolderPath("MyDocuments") + "\PowerShell\EnvironmentConfig.json"
-$Global:CacheFile = [System.Environment]::GetFolderPath("MyDocuments") + "\PowerShell\RemoteThemesCache.json"
-$Global:ThemeDirectory = [System.Environment]::GetFolderPath("MyDocuments") + "\PowerShell\Themes"
-
+# Determine base directory for configuration files based on $PROFILE
+$Global:BaseDirectory = Split-Path -Path $PROFILE -Parent
+# Define global paths relative to the base directory
+$Global:BinaryPath       = "$HOME\.oh-my-posh\oh-my-posh.exe" # Fixed binary location
+$Global:ConfigFile       = Join-Path -Path $Global:BaseDirectory -ChildPath "EnvironmentConfig.json"
+$Global:CacheFile        = Join-Path -Path $Global:BaseDirectory -ChildPath "RemoteThemesCache.json"
+$Global:ThemeDirectory   = Join-Path -Path $Global:BaseDirectory -ChildPath "Themes"
 # Global Lists
 $Global:DefaultThemes = @("peru", "agnoster")
+# Define global modules list
 $Global:ModulesToInstall = @(
     @{ Name = "Terminal-Icons"; Description = "Adds file icons to terminal output" }
 )
@@ -30,27 +32,6 @@ $Global:ModulesToInstall = @(
 #############################################
 ### SECTION 1: Oh My Posh User Management ###
 #############################################
-
-# Function: Check-Requirements
-# Description: Validates that the script is running in the required environment.
-function Check-Requirements {
-    param (
-        [switch]$Force, # If specified, forces the display of validation messages.
-        [switch]$Silent
-    )
-
-    # Step 1: Check PowerShell version
-    if ($Force -or $PSVersionTable.PSVersion.Major -lt 7) {
-        Write-Host "❌ This script requires PowerShell 7 or higher to function correctly." -ForegroundColor Red
-        Show-Installation-Instructions
-        if (-not $Force) {
-            exit
-        }
-    }
-
-    # Step 2: Validate other critical components (future requirements can go here)
-    if (-not $Silent) { Write-Host "✔️  Environment requirements validated successfully." -ForegroundColor Green }
-}
 
 # Function: Install-Environment
 # Description: Installs and configures the Oh My Posh environment for PowerShell.
@@ -91,6 +72,98 @@ function Install-Environment {
     Write-Host "This will enable icons and additional visual enhancements in the terminal." -ForegroundColor Green
 
     Write-Host "`nTip: Run 'Show-Help' to explore available commands and start familiarizing yourself with the features." -ForegroundColor Magenta
+}
+
+
+# Function: Cleanup-Environment
+# Description: Removes the Oh My Posh environment, uninstalls required modules, and resets configurations.
+function Cleanup-Environment {
+    Write-Host "Cleaning up the Oh My Posh environment..." -ForegroundColor Yellow
+
+    # Step 1: Uninstall each module
+    foreach ($Module in $Global:ModulesToInstall) {
+        $ModuleName = $Module.Name
+        $ModuleDescription = $Module.Description
+
+        Write-Host "Checking module: $ModuleName - $ModuleDescription" -ForegroundColor Cyan
+        try {
+            if (Get-InstalledModule -Name $ModuleName -ErrorAction SilentlyContinue) {
+                Write-Host "Uninstalling module: $ModuleName..." -ForegroundColor Yellow
+                Uninstall-Module -Name $ModuleName -AllVersions -Force -ErrorAction Stop
+                Write-Host "Module $ModuleName uninstalled successfully." -ForegroundColor Green
+            } else {
+                Write-Host "Module $ModuleName is not installed." -ForegroundColor Cyan
+            }
+        } catch {
+            Write-Host "Failed to uninstall module $ModuleName. Error: $_" -ForegroundColor Red
+        }
+    }
+
+    # Step 2: Remove fonts and themes
+    $FontDirectory = "$HOME\Documents\PowerShell\NerdFonts"
+
+    if (Test-Path $FontDirectory) {
+        Write-Host "Removing downloaded fonts..." -ForegroundColor Cyan
+        try {
+            Remove-Item -Path $FontDirectory -Recurse -Force -ErrorAction Stop
+            Write-Host "Fonts removed successfully." -ForegroundColor Green
+        } catch {
+            Write-Host "Failed to remove fonts. Error: $_" -ForegroundColor Red
+        }
+    } else {
+        Write-Host "No fonts found to remove." -ForegroundColor Cyan
+    }
+
+    if (Test-Path $Global:ThemeDirectory) {
+        Write-Host "Removing downloaded themes..." -ForegroundColor Cyan
+        try {
+            Remove-Item -Path $Global:ThemeDirectory -Recurse -Force -ErrorAction Stop
+            Write-Host "Themes removed successfully." -ForegroundColor Green
+        } catch {
+            Write-Host "Failed to remove themes. Error: $_" -ForegroundColor Red
+        }
+    } else {
+        Write-Host "No themes found to remove." -ForegroundColor Cyan
+    }
+
+    # Step 3: Reset configuration
+    if (Test-Path $Global:ConfigFile) {
+        Write-Host "Removing configuration file..." -ForegroundColor Cyan
+        try {
+            Remove-Item -Path $Global:ConfigFile -Force -ErrorAction Stop
+            Write-Host "Configuration file removed successfully." -ForegroundColor Green
+        } catch {
+            Write-Host "Failed to remove configuration file. Error: $_" -ForegroundColor Red
+        }
+    } else {
+        Write-Host "No configuration file found to remove." -ForegroundColor Cyan
+    }
+
+    # Step 4: Remove cache file
+    if (Test-Path $Global:CacheFile) {
+        Write-Host "Removing theme cache file..." -ForegroundColor Cyan
+        try {
+            Remove-Item -Path $Global:CacheFile -Force -ErrorAction Stop
+            Write-Host "Theme cache file removed successfully." -ForegroundColor Green
+        } catch {
+            Write-Host "Failed to remove theme cache file. Error: $_" -ForegroundColor Red
+        }
+    } else {
+        Write-Host "No theme cache file found to remove." -ForegroundColor Cyan
+    }
+
+    # Final cleanup message
+    Write-Host "`nCleanup Summary:" -ForegroundColor Cyan
+    Write-Host "  - Fonts removed: $((Test-Path $FontDirectory) -eq $false)" -ForegroundColor Green
+    Write-Host "  - Themes removed: $((Test-Path $Global:ThemeDirectory) -eq $false)" -ForegroundColor Green
+    Write-Host "  - Configuration file removed: $((Test-Path $Global:ConfigFile) -eq $false)" -ForegroundColor Green
+    Write-Host "⚠️  Note: Oh My Posh binary was not removed. Use 'Remove-Posh-Binary' if needed." -ForegroundColor Yellow
+
+    # Notify user and wait for confirmation
+    Write-Host "`nThe terminal will now close to avoid inconsistencies. Please reopen to start fresh." -ForegroundColor Red
+    Write-Host "Press any key to continue and close the terminal..." -ForegroundColor Yellow
+    [void][System.Console]::ReadKey($true)  # Wait for any key press
+    exit
 }
 
 # Function: Set-Theme
@@ -305,112 +378,25 @@ function Self-Update {
     }
 }
 
-# Function: Cleanup-Environment
-# Description: Removes the Oh My Posh environment, uninstalls required modules, and resets configurations.
-function Cleanup-Environment {
-    Write-Host "Cleaning up the Oh My Posh environment..." -ForegroundColor Yellow
+# Function: Check-Requirements
+# Description: Validates that the script is running in the required environment.
+function Check-Requirements {
+    param (
+        [switch]$Force, # If specified, forces the display of validation messages.
+        [switch]$Silent
+    )
 
-    # Step 1: Uninstall each module
-    foreach ($Module in $Global:ModulesToInstall) {
-        $ModuleName = $Module.Name
-        $ModuleDescription = $Module.Description
-
-        Write-Host "Checking module: $ModuleName - $ModuleDescription" -ForegroundColor Cyan
-        try {
-            if (Get-InstalledModule -Name $ModuleName -ErrorAction SilentlyContinue) {
-                Write-Host "Uninstalling module: $ModuleName..." -ForegroundColor Yellow
-                Uninstall-Module -Name $ModuleName -AllVersions -Force -ErrorAction Stop
-                Write-Host "Module $ModuleName uninstalled successfully." -ForegroundColor Green
-            } else {
-                Write-Host "Module $ModuleName is not installed." -ForegroundColor Cyan
-            }
-        } catch {
-            Write-Host "Failed to uninstall module $ModuleName. Error: $_" -ForegroundColor Red
+    # Step 1: Check PowerShell version
+    if ($Force -or $PSVersionTable.PSVersion.Major -lt 7) {
+        Write-Host "❌ This script requires PowerShell 7 or higher to function correctly." -ForegroundColor Red
+        Show-Installation-Instructions
+        if (-not $Force) {
+            exit
         }
     }
 
-    # Step 2: Remove fonts and themes
-    $FontDirectory = "$HOME\Documents\PowerShell\NerdFonts"
-
-    if (Test-Path $FontDirectory) {
-        Write-Host "Removing downloaded fonts..." -ForegroundColor Cyan
-        try {
-            Remove-Item -Path $FontDirectory -Recurse -Force -ErrorAction Stop
-            Write-Host "Fonts removed successfully." -ForegroundColor Green
-        } catch {
-            Write-Host "Failed to remove fonts. Error: $_" -ForegroundColor Red
-        }
-    } else {
-        Write-Host "No fonts found to remove." -ForegroundColor Cyan
-    }
-
-    if (Test-Path $Global:ThemeDirectory) {
-        Write-Host "Removing downloaded themes..." -ForegroundColor Cyan
-        try {
-            Remove-Item -Path $Global:ThemeDirectory -Recurse -Force -ErrorAction Stop
-            Write-Host "Themes removed successfully." -ForegroundColor Green
-        } catch {
-            Write-Host "Failed to remove themes. Error: $_" -ForegroundColor Red
-        }
-    } else {
-        Write-Host "No themes found to remove." -ForegroundColor Cyan
-    }
-
-    # Step 3: Reset configuration
-    if (Test-Path $Global:ConfigFile) {
-        Write-Host "Removing configuration file..." -ForegroundColor Cyan
-        try {
-            Remove-Item -Path $Global:ConfigFile -Force -ErrorAction Stop
-            Write-Host "Configuration file removed successfully." -ForegroundColor Green
-        } catch {
-            Write-Host "Failed to remove configuration file. Error: $_" -ForegroundColor Red
-        }
-    } else {
-        Write-Host "No configuration file found to remove." -ForegroundColor Cyan
-    }
-
-    # Step 4: Remove cache file
-    if (Test-Path $Global:CacheFile) {
-        Write-Host "Removing theme cache file..." -ForegroundColor Cyan
-        try {
-            Remove-Item -Path $Global:CacheFile -Force -ErrorAction Stop
-            Write-Host "Theme cache file removed successfully." -ForegroundColor Green
-        } catch {
-            Write-Host "Failed to remove theme cache file. Error: $_" -ForegroundColor Red
-        }
-    } else {
-        Write-Host "No theme cache file found to remove." -ForegroundColor Cyan
-    }
-
-    # Final cleanup message
-    Write-Host "`nCleanup Summary:" -ForegroundColor Cyan
-    Write-Host "  - Fonts removed: $((Test-Path $FontDirectory) -eq $false)" -ForegroundColor Green
-    Write-Host "  - Themes removed: $((Test-Path $Global:ThemeDirectory) -eq $false)" -ForegroundColor Green
-    Write-Host "  - Configuration file removed: $((Test-Path $Global:ConfigFile) -eq $false)" -ForegroundColor Green
-    Write-Host "⚠️  Note: Oh My Posh binary was not removed. Use 'Remove-Posh-Binary' if needed." -ForegroundColor Yellow
-
-    # Notify user and wait for confirmation
-    Write-Host "`nThe terminal will now close to avoid inconsistencies. Please reopen to start fresh." -ForegroundColor Red
-    Write-Host "Press any key to continue and close the terminal..." -ForegroundColor Yellow
-    [void][System.Console]::ReadKey($true)  # Wait for any key press
-    exit
-}
-
-# Function: Test-Binary
-# Description: Validates that the Oh My Posh binary is functional.
-function Test-Binary {
-    if (-not $Global:BinaryValidated) {
-        try {
-            # Try executing the binary to check its functionality
-            & $Global:BinaryPath --version | Out-Null
-            $Global:BinaryValidated = $true
-            Debug-Log "Binary validated successfully: $Global:BinaryPath"
-        } catch {
-            Write-Host "❌ Oh My Posh binary is missing or not functional!" -ForegroundColor Red
-            Write-Host "Run 'Install-Environment' to reinstall the environment." -ForegroundColor Yellow
-            throw
-        }
-    }
+    # Step 2: Validate other critical components (future requirements can go here)
+    if (-not $Silent) { Write-Host "✔️  Environment requirements validated successfully." -ForegroundColor Green }
 }
 
 # Function: Remove-Posh-Binary
@@ -553,6 +539,7 @@ function Show-Help {
 ### SECTION 2: Private Support Functions ###
 ############################################
 
+
 # Function: Debug-Log
 # Description: Logs messages to the console if DebugMode is enabled.
 function Debug-Log {
@@ -565,20 +552,83 @@ function Debug-Log {
     }
 }
 
-# Function: Get-Config
-# Measures time to load configuration.
-function Get-Config {
-    if (Test-Path $Global:ConfigFile) {
+# Function: Test-Binary
+# Description: Validates that the Oh My Posh binary is functional.
+function Test-Binary {
+    if (-not $Global:BinaryValidated) {
         try {
-            # Lee el archivo JSON y lo convierte a un objeto PowerShell
-            return Get-Content -Path $Global:ConfigFile | ConvertFrom-Json
+            # Try executing the binary to check its functionality
+            & $Global:BinaryPath --version | Out-Null
+            $Global:BinaryValidated = $true
+            Debug-Log "Binary validated successfully: $Global:BinaryPath"
         } catch {
-            # Maneja errores y carga configuración por defecto
-            Write-Host "Failed to load config. Using defaults." -ForegroundColor Red
+            Write-Host "❌ Oh My Posh binary is missing or not functional!" -ForegroundColor Red
+            Write-Host "Run 'Install-Environment' to reinstall the environment." -ForegroundColor Yellow
+            throw
         }
     }
-    # Configuración por defecto si no existe el archivo
-    return [PSCustomObject]@{ ThemeName = "peru"; IsConfigured = $false; ThemeDisabled = $true }
+}
+
+# Validate and create necessary directories and files during initialization
+function Initialize-Environment {
+    param (
+        [switch]$Silent # If specified, suppresses success messages
+    )
+
+    # Ensure the base directory exists
+    if (-not (Test-Path -Path $Global:BaseDirectory)) {
+        New-Item -ItemType Directory -Path $Global:BaseDirectory -Force | Out-Null
+    }
+
+    # Ensure theme directory exists
+    if (-not (Test-Path -Path $Global:ThemeDirectory)) {
+        New-Item -ItemType Directory -Path $Global:ThemeDirectory -Force | Out-Null
+    }
+
+    # Ensure configuration file exists
+    if (-not (Test-Path -Path $Global:ConfigFile)) {
+        $DefaultConfig = [PSCustomObject]@{
+            ThemeName     = "peru"
+            IsConfigured  = $false
+            ThemeDisabled = $true
+            FileExists    = $false
+        }
+        $DefaultConfig | ConvertTo-Json -Depth 10 | Out-File -FilePath $Global:ConfigFile -Encoding UTF8
+    }
+
+    if (-not $Silent) {
+        Write-Host "Environment initialized successfully." -ForegroundColor Green
+    }
+}
+
+# Function: Get-Config
+# Description: Loads the configuration from a JSON file.
+function Get-Config {
+    Debug-Log "Attempting to load configuration from: $Global:ConfigFile"
+
+    if (Test-Path $Global:ConfigFile) {
+        try {
+            $Config = Get-Content -Path $Global:ConfigFile | ConvertFrom-Json
+            $Config.FileExists = $true
+            Debug-Log "Configuration loaded successfully: $Config"
+            return $Config
+        } catch {
+            Write-Host "Failed to load configuration. Error: $_" -ForegroundColor Red
+        }
+    } else {
+        Debug-Log "Configuration file not found at: $Global:ConfigFile"
+    }
+
+    # Return default configuration if the file is missing or fails to load
+    $DefaultConfig = [PSCustomObject]@{
+        ThemeName       = "peru"
+        IsConfigured    = $false
+        ThemeDisabled   = $true
+        FileExists      = $false
+        LastUpdateCheck = (Get-Date).ToString("yyyy-MM-ddTHH:mm:ssK") # ISO 8601 format
+    }
+    Debug-Log "Using default configuration: $DefaultConfig"
+    return $DefaultConfig
 }
 
 # Function: Save-Config
@@ -994,6 +1044,18 @@ Measure-Time -OperationName "Startup-Process" -Action {
     Measure-Time -OperationName "Check-Requirements" -Action {
         Check-Requirements -Silent
     }
+
+    # Load configuration
+    $Config = Get-Config
+
+    # Check if the environment is configured
+    if (-not $Config.IsConfigured) {
+        Write-Host "Oh My Posh is not configured. Run 'Install-Environment' to set up the environment." -ForegroundColor Yellow
+        return
+    }
+
+    # Initialize environment and directories
+    Initialize-Environment -Silent
 
     # Load configuration file once
     $Config = Measure-Time -OperationName "Get-Config" -Action { Get-Config }
