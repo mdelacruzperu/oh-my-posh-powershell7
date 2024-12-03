@@ -21,13 +21,31 @@ if ($ExecutionPolicy -eq "Restricted") {
     return
 }
 
-# Step 3: Determine base directory and configuration paths
+# Step 3: Determine the PowerShell directory and ensure it exists
+$PowerShellDirectory = Join-Path -Path ([System.Environment]::GetFolderPath("MyDocuments")) -ChildPath "PowerShell"
+if (-not (Test-Path $PowerShellDirectory)) {
+    Write-Host "⚠️ PowerShell directory not found. Creating it now..." -ForegroundColor Yellow
+    try {
+        New-Item -ItemType Directory -Path $PowerShellDirectory -Force | Out-Null
+        Write-Host "✔️ PowerShell directory created: $PowerShellDirectory" -ForegroundColor Green
+    } catch {
+        Write-Host "❌ Failed to create PowerShell directory. Error: $_" -ForegroundColor Red
+        return
+    }
+}
+
+# Define $PROFILE manually if not already set
+if (-not $PROFILE) {
+    $PROFILE = Join-Path -Path $PowerShellDirectory -ChildPath "Microsoft.PowerShell_profile.ps1"
+}
+
+# Step 4: Determine base directory and configuration paths
 $Global:BaseDirectory = Split-Path -Path $PROFILE -Parent
 $Global:ConfigFile = Join-Path -Path $Global:BaseDirectory -ChildPath "EnvironmentConfig.json"
 
 Write-Host "Configuration base directory set to: $Global:BaseDirectory" -ForegroundColor Green
 
-# Step 4: Determine profile source
+# Step 5: Determine profile source
 $ProfileSourcePath = ""
 if ($Local) {
     # Local mode: Use the file in the same directory
@@ -54,24 +72,23 @@ if ($Local) {
     }
 }
 
-# Step 5: Prepare the target path
-$TargetProfilePath = "$HOME\Documents\PowerShell\Microsoft.PowerShell_profile.ps1"
+# Step 6: Prepare the target path
+$TargetProfilePath = $PROFILE
 $BackupProfilePath = "$TargetProfilePath.bak"
-$TargetDirectory = Split-Path -Path $TargetProfilePath -Parent
 
 # Ensure the target directory exists
-if (-not (Test-Path $TargetDirectory)) {
+if (-not (Test-Path $PowerShellDirectory)) {
     Write-Host "⚠️ Target directory does not exist. Creating it now..." -ForegroundColor Yellow
     try {
-        New-Item -ItemType Directory -Path $TargetDirectory -Force | Out-Null
-        Write-Host "✔️ Target directory created: $TargetDirectory" -ForegroundColor Green
+        New-Item -ItemType Directory -Path $PowerShellDirectory -Force | Out-Null
+        Write-Host "✔️ Target directory created: $PowerShellDirectory" -ForegroundColor Green
     } catch {
         Write-Host "❌ Failed to create target directory. Error: $_" -ForegroundColor Red
         return
     }
 }
 
-# Step 6: Check for existing profile
+# Step 7: Check for existing profile
 $ProfileExists = Test-Path $TargetProfilePath
 if ($ProfileExists) {
     Write-Host "⚠️ Existing profile detected at $TargetProfilePath." -ForegroundColor Yellow
@@ -80,7 +97,7 @@ if ($ProfileExists) {
     Write-Host "✔️ No existing profile detected. A new profile will be installed." -ForegroundColor Green
 }
 
-# Step 7: Display summary and request confirmation
+# Step 8: Display summary and request confirmation
 Write-Host "`n=== Installation Summary ===" -ForegroundColor Cyan
 Write-Host "Source profile: $ProfileSourcePath" -ForegroundColor Cyan
 Write-Host "Target profile: $TargetProfilePath" -ForegroundColor Cyan
@@ -95,14 +112,14 @@ if (-not $Force) {
     }
 }
 
-# Step 8: Backup existing profile (if any)
+# Step 9: Backup existing profile (if any)
 if ($ProfileExists) {
     Write-Host "Creating backup of the existing profile..." -ForegroundColor Cyan
     Copy-Item -Path $TargetProfilePath -Destination $BackupProfilePath -Force
     Write-Host "✔️ Backup created: $BackupProfilePath" -ForegroundColor Green
 }
 
-# Step 9: Install the new profile
+# Step 10: Install the new profile
 Write-Host "Installing new profile..." -ForegroundColor Cyan
 try {
     Copy-Item -Path $ProfileSourcePath -Destination $TargetProfilePath -Force
@@ -112,7 +129,7 @@ try {
     return
 }
 
-# Step 10: Create or update configuration file
+# Step 11: Create or update configuration file
 if (-not (Test-Path $Global:ConfigFile)) {
     Write-Host "Creating initial configuration file..." -ForegroundColor Cyan
     $InitialConfig = [PSCustomObject]@{
