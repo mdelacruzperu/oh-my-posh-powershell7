@@ -1,11 +1,38 @@
 # install-profile.ps1 - Installs the PowerShell profile.
 
 param(
-    [switch]$Local,   # Use this switch for local installation (use file in the same directory).
+    [switch]$Local,  # Use this switch for local installation (use file in the same directory).
     [switch]$Force   # Use this switch to avoid user confirmation.
 )
 
 Write-Host "=== PowerShell Profile Installer ===" -ForegroundColor Cyan
+
+$DebugMode = $false
+
+### Debugging Functions:
+function Debug-Log {
+    param (
+        [string]$Message
+    )
+    if ($DebugMode) {
+        $LineNumber = $MyInvocation.ScriptLineNumber
+        Write-Host "[DEBUG] (Line $LineNumber) $Message" -ForegroundColor DarkGray
+    }
+}
+
+if ($DebugMode) {
+    Write-Host "#######################################" -ForegroundColor Red
+    Write-Host "#           Debug mode enabled        #" -ForegroundColor Red
+    Write-Host "#          ONLY FOR DEVELOPMENT       #" -ForegroundColor Red
+    Write-Host "#######################################" -ForegroundColor Red
+}
+
+# Define paths
+$DownloadsPath = (New-Object -ComObject Shell.Application).Namespace('shell:Downloads').Self.Path
+$DocumentsPath = [Environment]::GetFolderPath("MyDocuments")
+
+Debug-Log "Downloads path: $DownloadsPath"
+Debug-Log "Documents path: $DocumentsPath"
 
 # Step 1: Validate PowerShell version
 if ($PSVersionTable.PSVersion.Major -lt 7) {
@@ -23,55 +50,56 @@ if ($ExecutionPolicy -eq "Restricted") {
 
 # Step 3: Determine profile source
 $ProfileSourcePath = ""
-if ($Local) {
-    # Local mode: Use the file in the same directory
-    $ProfileSourcePath = Join-Path -Path (Split-Path -Path $MyInvocation.MyCommand.Definition) -ChildPath "profile.ps1"
+try {
+    if ($Local) {
+        # Local mode: Use the file in the same directory
+        $ProfileSourcePath = Join-Path -Path (Split-Path -Path $MyInvocation.MyCommand.Definition) -ChildPath "profile.ps1"
+        if (-not (Test-Path $ProfileSourcePath)) {
+            throw "Local profile.ps1 not found at $ProfileSourcePath"
+        }
+        Write-Host "✔️ Using local profile.ps1 at $ProfileSourcePath" -ForegroundColor Green
+    } else {
+        # Remote mode (default): Download the file from GitHub
+        $ProfileUrl = "https://raw.githubusercontent.com/mdelacruzperu/oh-my-posh-powershell7/main/profile.ps1"
+        $ProfileSourcePath = Join-Path -Path $DownloadsPath -ChildPath "profile.ps1"
 
-    if (-not (Test-Path $ProfileSourcePath)) {
-        Write-Host "❌ profile.ps1 not found in the current directory. Please ensure the file is present." -ForegroundColor Red
-        return
-    }
-
-    Write-Host "✔️ Using local profile.ps1 at $ProfileSourcePath" -ForegroundColor Green
-} else {
-    # Remote mode (default): Download the file from GitHub
-    $ProfileUrl = "https://raw.githubusercontent.com/mdelacruzperu/oh-my-posh-powershell7/main/profile.ps1"
-    $ProfileSourcePath = "$HOME\Downloads\profile.ps1"
-
-    Write-Host "Downloading profile.ps1 from GitHub..." -ForegroundColor Cyan
-    try {
+        Write-Host "Downloading profile.ps1 from GitHub..." -ForegroundColor Cyan
         Invoke-WebRequest -Uri $ProfileUrl -OutFile $ProfileSourcePath -ErrorAction Stop
         Write-Host "✔️ Profile downloaded successfully to $ProfileSourcePath" -ForegroundColor Green
-    } catch {
-        Write-Host "❌ Failed to download profile.ps1. Please check your internet connection or the URL." -ForegroundColor Red
-        return
     }
+} catch {
+    Write-Host "❌ Failed to determine or download profile.ps1. Error: $_" -ForegroundColor Red
+    return
 }
 
 # Step 4: Prepare the target path
-$TargetProfilePath = "$HOME\Documents\PowerShell\Microsoft.PowerShell_profile.ps1"
+$TargetProfilePath = Join-Path -Path $DocumentsPath -ChildPath "PowerShell\Microsoft.PowerShell_profile.ps1"
 $BackupProfilePath = "$TargetProfilePath.bak"
 $TargetDirectory = Split-Path -Path $TargetProfilePath -Parent
 
-# Ensure the target directory exists
-if (-not (Test-Path $TargetDirectory)) {
-    Write-Host "⚠️ Target directory does not exist. Creating it now..." -ForegroundColor Yellow
-    try {
+try {
+    if (-not (Test-Path $TargetDirectory)) {
         New-Item -ItemType Directory -Path $TargetDirectory -Force | Out-Null
-        Write-Host "✔️ Target directory created: $TargetDirectory" -ForegroundColor Green
-    } catch {
-        Write-Host "❌ Failed to create target directory. Error: $_" -ForegroundColor Red
-        return
+        Write-Host "✔️ Target directory ensured: $TargetDirectory" -ForegroundColor Green
+    } else {
+        Write-Host "✔️ Target directory already exists: $TargetDirectory" -ForegroundColor Cyan
     }
+} catch {
+    Write-Host "❌ Failed to create or access target directory: $TargetDirectory. Error: $_" -ForegroundColor Red
+    return
 }
 
-# Step 5: Check for existing profile
+# Step 5: Backup existing profile
 $ProfileExists = Test-Path $TargetProfilePath
 if ($ProfileExists) {
-    Write-Host "⚠️ Existing profile detected at $TargetProfilePath." -ForegroundColor Yellow
-    Write-Host "This profile will be backed up to $BackupProfilePath." -ForegroundColor Cyan
+    try {
+        Copy-Item -Path $TargetProfilePath -Destination $BackupProfilePath -Force
+        Write-Host "✔️ Backup created at $BackupProfilePath" -ForegroundColor Green
+    } catch {
+        Debug-Log "Failed to back up profile. Error: $_"
+    }
 } else {
-    Write-Host "✔️ No existing profile detected. A new profile will be installed." -ForegroundColor Green
+    Debug-Log "No existing profile to back up."
 }
 
 # Step 6: Display summary and request confirmation
@@ -81,7 +109,7 @@ Write-Host "Target profile: $TargetProfilePath" -ForegroundColor Cyan
 if ($ProfileExists) {
     Write-Host "Backup will be created at: $BackupProfilePath" -ForegroundColor Yellow
 }
-if ( -not $Force ) {
+if (-not $Force) {
     $response = Read-Host "Do you want to proceed with the installation? (yes/no)"
     if ($response -notin @("yes", "y")) {
         Write-Host "Installation canceled by user." -ForegroundColor Yellow
@@ -89,15 +117,7 @@ if ( -not $Force ) {
     }
 }
 
-# Step 7: Backup existing profile (if any)
-if ($ProfileExists) {
-    Write-Host "Creating backup of the existing profile..." -ForegroundColor Cyan
-    Copy-Item -Path $TargetProfilePath -Destination $BackupProfilePath -Force
-    Write-Host "✔️ Backup created: $BackupProfilePath" -ForegroundColor Green
-}
-
-# Step 8: Install the new profile
-Write-Host "Installing new profile..." -ForegroundColor Cyan
+# Step 7: Install the new profile
 try {
     Copy-Item -Path $ProfileSourcePath -Destination $TargetProfilePath -Force
     Write-Host "✔️ Profile installed successfully at $TargetProfilePath" -ForegroundColor Green

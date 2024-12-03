@@ -8,35 +8,30 @@ We are currently in a global testing phase. If you encounter any issues, please 
 
 ---
 
-Transform your PowerShell experience with this comprehensive script, designed to set up **Oh My Posh** and customize your terminal environment like a pro! Whether you're a developer, system administrator, or just a terminal enthusiast, this script automates the process to save you time and effort.
+Transform your PowerShell experience with this streamlined script! Designed to automate the setup and management of **Oh My Posh**, this project provides a highly customized terminal experience. Save time while enjoying a clean, functional environment.
 
 ---
 
 ## 📋 Features
 
-- Automatically installs and configures **Oh My Posh**.
-- Validates that you have **PowerShell 7** or higher installed.
-- Downloads and applies **Nerd Fonts** for a stunning terminal look.
-- Installs useful PowerShell modules like **Terminal-Icons**.
-- Manages themes, including downloading and caching from remote sources.
-- Allows easy customization and resetting of your PowerShell prompt.
-- Offers user-friendly utilities like system info, uptime, and more.
+- **Automated Setup**: Installs and configures **Oh My Posh** with a single command.
+- **Custom Themes**: Manage local and remote themes effortlessly.
+- **Module Management**: Includes popular modules like **Terminal-Icons**.
+- **Performance Optimized**: Ensures startup times stay under 500ms.
+- **Easy Cleanup**: Fully reversible with `Uninstall-Environment`.
 
 ---
 
 ## 🚦 Requirements
 
-Before using this script, ensure you meet the following requirements:
-
 1. **PowerShell 7 or higher**  
-   - Download from [PowerShell GitHub](https://github.com/PowerShell/PowerShell).  
-   - Follow the instructions for your operating system.
+   - Download from [PowerShell GitHub](https://github.com/PowerShell/PowerShell).
 
-2. **Internet Connection**  
-   - Required for downloading Oh My Posh, themes, and fonts.
+2. **Nerd Fonts**  
+   - Required for enhanced visuals. Fonts are downloaded during installation.
 
 3. **Execution Policy**  
-   - Ensure your PowerShell execution policy allows running scripts:
+   - Set your PowerShell execution policy:
      ```powershell
      Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
      ```
@@ -82,23 +77,17 @@ If you prefer to review the script before running it:
 ## 🖼 Preview
 
 ![Terminal Example #1](images/image-1.png "Example 1")
-![Terminal Example #2](images/image-2.1.png "Example 2")
+![Terminal Example #2](images/image-2.png "Example 2")
 
 ---
 
 ## 💡 Usage
 
-Once installed, you can use the following commands to manage your environment:
-
 ### **Key Commands**
 - `Install-Environment`: Installs or updates Oh My Posh and related components.
+- `Uninstall-Environment`: Removes all customizations and resets to default.
 - `Set-Theme -ThemeName <name>`: Applies a specific theme (e.g., `Set-Theme -ThemeName peru`).
-- `Reset-Theme`: Resets to the default PowerShell prompt.
-- `Reactivate-Theme`: Reapplies the last configured theme.
-- `Cleanup-Environment`: Removes all customizations and resets to default.
 - `List-Themes [-Remote]`: Lists available themes. Use `-Remote` to fetch remote themes from GitHub.
-- `Update-Posh-Binary`: Updates the Oh My Posh binary to the latest version.
-- `Self-Update`: Updates the PowerShell profile to the latest version from GitHub.
 
 ---
 
