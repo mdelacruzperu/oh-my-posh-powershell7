@@ -35,12 +35,13 @@ if (-not (Test-Path $PowerShellDirectory)) {
 }
 
 # Define $PROFILE manually if not already set
-if (-not $PROFILE) {
-    $PROFILE = Join-Path -Path $PowerShellDirectory -ChildPath "Microsoft.PowerShell_profile.ps1"
+if (-not (Test-Path $PROFILE)) {
+    $CustomProfilePath = Join-Path -Path $PowerShellDirectory -ChildPath "Microsoft.PowerShell_profile.ps1"
 }
 
+
 # Step 4: Determine base directory and configuration paths
-$Global:BaseDirectory = Split-Path -Path $PROFILE -Parent
+$Global:BaseDirectory = Split-Path -Path $CustomProfilePath -Parent
 $Global:ConfigFile = Join-Path -Path $Global:BaseDirectory -ChildPath "EnvironmentConfig.json"
 
 Write-Host "Configuration base directory set to: $Global:BaseDirectory" -ForegroundColor Green
@@ -73,7 +74,7 @@ if ($Local) {
 }
 
 # Step 6: Prepare the target path
-$TargetProfilePath = $PROFILE
+$TargetProfilePath = $CustomProfilePath
 $BackupProfilePath = "$TargetProfilePath.bak"
 
 # Ensure the target directory exists
@@ -136,6 +137,7 @@ if (-not (Test-Path $Global:ConfigFile)) {
         ThemeName        = "peru"
         IsConfigured     = $true
         ThemeDisabled    = $false
+        FileExists       = $true
         LastUpdateCheck  = (Get-Date).ToString("yyyy-MM-ddTHH:mm:ss")
     }
     $InitialConfig | ConvertTo-Json -Depth 10 | Out-File -FilePath $Global:ConfigFile -Encoding UTF8
