@@ -27,9 +27,12 @@ $Global:CacheFile        = Join-Path -Path $Global:BaseDirectory -ChildPath "Rem
 $Global:ThemeDirectory   = Join-Path -Path $Global:BaseDirectory -ChildPath "Themes"
 # Global Lists
 $Global:DefaultThemes = @("peru")
-# Define global modules list
 $Global:ModulesToInstall = @(
     @{ Name = "Terminal-Icons"; Description = "Adds file icons to terminal output" }
+)
+$Global:Fonts = @(
+    @{ Name = "CaskaydiaCove"; Uri = "https://github.com/ryanoasis/nerd-fonts/releases/latest/download/CascadiaCode.zip" },
+    @{ Name = "FiraCode"; Uri = "https://github.com/ryanoasis/nerd-fonts/releases/latest/download/FiraCode.zip" }
 )
 
 
@@ -113,7 +116,30 @@ function Install-Environment {
         }
     }
 
-    # Step 4: Update or install themes
+    # Step 4: Install or update Nerd Fonts
+    try {
+        $FontDirectory = Join-Path -Path $Global:BaseDirectory -ChildPath "NerdFonts"
+        Ensure-Directory -DirectoryPath $FontDirectory
+
+        foreach ($Font in $Global:Fonts) {
+            $FontPath = Join-Path -Path $FontDirectory -ChildPath "$($Font.Name).zip"
+            if (-not (Test-Path $FontPath)) {
+                Write-Host "Downloading Nerd Font: $($Font.Name)..." -ForegroundColor Cyan
+                Invoke-WebRequest -Uri $Font.Uri -OutFile $FontPath -ErrorAction Stop
+                Expand-Archive -Path $FontPath -DestinationPath $FontDirectory -Force
+                Remove-Item $FontPath
+                Write-Host "✔️ Font $($Font.Name) installed successfully in $FontDirectory." -ForegroundColor Green
+            } else {
+                Write-Host "Font $($Font.Name) is already installed." -ForegroundColor Green
+            }
+        }
+
+        Write-Host "To use the Nerd Fonts, open the font folder and install the desired font manually." -ForegroundColor Yellow
+    } catch {
+        Write-Host "⚠️ Failed to download or install Nerd Fonts. Error: $_" -ForegroundColor Red
+    }
+
+    # Step 5: Update or install themes
     try {
         Ensure-Directory -DirectoryPath $Global:ThemeDirectory
 
@@ -132,7 +158,7 @@ function Install-Environment {
         Write-Host "⚠️ Failed to install or update themes. Error: $_" -ForegroundColor Red
     }
 
-    # Step 5: Finalize and save configuration
+    # Step 6: Finalize and save configuration
     try {
         $Global:Config.IsConfigured = $true
         Save-Config -Config $Global:Config -Silent
