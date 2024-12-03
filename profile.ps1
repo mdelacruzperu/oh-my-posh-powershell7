@@ -45,10 +45,29 @@ function Install-Environment {
     # Step 1: Load or initialize configuration
     try {
         $Global:Config = Get-Config
-        $Global:Config.IsConfigured = $true
-        Save-Config -Config $Global:Config -Silent
+
+        if (-not $Global:Config) {
+            Write-Host "Configuration not found. Initializing default configuration..." -ForegroundColor Yellow
+
+            # Define default configuration
+            $Global:Config = [PSCustomObject]@{
+                ThemeName       = $Global:DefaultThemes[0]
+                IsConfigured    = $false
+                ThemeDisabled   = $false
+                FileExists      = $true
+                LastUpdateCheck = (Get-Date).ToString("o")
+            }
+
+            # Save the newly initialized configuration
+            Save-Config -Config $Global:Config -Silent
+            Write-Host "✔️ Default configuration initialized and saved." -ForegroundColor Green
+        } else {
+            # Mark as configured and save any changes
+            $Global:Config.IsConfigured = $true
+            Save-Config -Config $Global:Config -Silent
+        }
     } catch {
-        Write-Host "⚠️ Failed to initialize configuration. Installation aborted." -ForegroundColor Red
+        Write-Host "❌ Critical error initializing configuration: $_" -ForegroundColor Red
         return
     }
 
@@ -215,8 +234,15 @@ function Uninstall-Environment {
                 Remove-Item -Path $Global:BinaryPath -Force -ErrorAction Stop
                 Write-Host "✔️ Oh My Posh binary removed successfully." -ForegroundColor Green
                 $BinaryRemoved = $true
+
+                # Check if the folder is empty and remove it
+                $BinaryDirectory = Split-Path -Path $Global:BinaryPath -Parent
+                if ((Get-ChildItem -Path $BinaryDirectory -Recurse -Force).Count -eq 0) {
+                    Remove-Item -Path $BinaryDirectory -Force -ErrorAction Stop
+                    Write-Host "✔️ Oh My Posh directory removed as it was empty." -ForegroundColor Green
+                }
             } catch {
-                Write-Host "❌ Failed to remove the Oh My Posh binary. Error: $_" -ForegroundColor Red
+                Write-Host "❌ Failed to remove the Oh My Posh binary or directory. Error: $_" -ForegroundColor Red
             }
         } else {
             Write-Host "ℹ️ Oh My Posh binary was not removed. You can delete it manually if needed." -ForegroundColor Cyan
@@ -233,7 +259,10 @@ function Uninstall-Environment {
     Write-Host "  - Configuration file removed: $(if ($ConfigRemoved) { '✅' } else { '✖️' })" -ForegroundColor Green
     Write-Host "  - Cache file removed: $(if ($CacheRemoved) { '✅' } else { '✖️' })" -ForegroundColor Green
     Write-Host "  - Binary removed: $(if ($BinaryRemoved) { '✅' } else { '✖️' })" -ForegroundColor Green
-
+    Write-Host ""
+    Write-Host "⚠️ If you want to completely remove the PowerShell profile script, delete the following file manually:" -ForegroundColor Yellow
+    Write-Host "   $PROFILE" -ForegroundColor Cyan
+    Write-Host ""
     Write-Host "`nThe terminal will now close to avoid inconsistencies. Please reopen to start fresh." -ForegroundColor Red
     Write-Host "Press any key to continue and close the terminal..." -ForegroundColor Yellow
     [void][System.Console]::ReadKey($true)
