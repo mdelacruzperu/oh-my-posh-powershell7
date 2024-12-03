@@ -34,21 +34,32 @@ if (-not (Test-Path $PowerShellDirectory)) {
     }
 }
 
-# Define $PROFILE manually if not already set
-if (-not (Test-Path $PROFILE)) {
+# Step 4: Define $PROFILE or fallback to a custom path
+if (-not $PROFILE) {
+    Write-Host "⚠️ $PROFILE variable is not set. Using a fallback path." -ForegroundColor Yellow
     $CustomProfilePath = Join-Path -Path $PowerShellDirectory -ChildPath "Microsoft.PowerShell_profile.ps1"
 } else {
     $CustomProfilePath = $PROFILE
 }
 
+# Check that the fallback path is valid
+if (-not (Test-Path (Split-Path -Path $CustomProfilePath -Parent))) {
+    try {
+        New-Item -ItemType Directory -Path (Split-Path -Path $CustomProfilePath -Parent) -Force | Out-Null
+        Write-Host "✔️ Created fallback directory for profile: $CustomProfilePath" -ForegroundColor Green
+    } catch {
+        Write-Host "❌ Failed to create directory for fallback profile path. Error: $_" -ForegroundColor Red
+        return
+    }
+}
 
-# Step 4: Determine base directory and configuration paths
+# Step 5: Determine base directory and configuration paths
 $Global:BaseDirectory = Split-Path -Path $CustomProfilePath -Parent
 $Global:ConfigFile = Join-Path -Path $Global:BaseDirectory -ChildPath "EnvironmentConfig.json"
 
 Write-Host "Configuration base directory set to: $Global:BaseDirectory" -ForegroundColor Green
 
-# Step 5: Determine profile source
+# Step 6: Determine profile source
 $ProfileSourcePath = ""
 if ($Local) {
     # Local mode: Use the file in the same directory
@@ -75,7 +86,7 @@ if ($Local) {
     }
 }
 
-# Step 6: Prepare the target path
+# Step 7: Prepare the target path
 $TargetProfilePath = $CustomProfilePath
 $BackupProfilePath = "$TargetProfilePath.bak"
 
@@ -89,15 +100,6 @@ if (-not (Test-Path $PowerShellDirectory)) {
         Write-Host "❌ Failed to create target directory. Error: $_" -ForegroundColor Red
         return
     }
-}
-
-# Step 7: Check for existing profile
-$ProfileExists = Test-Path $TargetProfilePath
-if ($ProfileExists) {
-    Write-Host "⚠️ Existing profile detected at $TargetProfilePath." -ForegroundColor Yellow
-    Write-Host "This profile will be backed up to $BackupProfilePath." -ForegroundColor Cyan
-} else {
-    Write-Host "✔️ No existing profile detected. A new profile will be installed." -ForegroundColor Green
 }
 
 # Step 8: Display summary and request confirmation
