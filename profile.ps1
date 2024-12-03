@@ -134,6 +134,7 @@ function Install-Environment {
 
     # Step 5: Finalize and save configuration
     try {
+        $Global:Config.IsConfigured = $true
         Save-Config -Config $Global:Config -Silent
         Write-Host "✔️ Configuration saved successfully." -ForegroundColor Green
     } catch {
