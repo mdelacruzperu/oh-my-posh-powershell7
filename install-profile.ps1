@@ -37,6 +37,8 @@ if (-not (Test-Path $PowerShellDirectory)) {
 # Define $PROFILE manually if not already set
 if (-not (Test-Path $PROFILE)) {
     $CustomProfilePath = Join-Path -Path $PowerShellDirectory -ChildPath "Microsoft.PowerShell_profile.ps1"
+} else {
+    $CustomProfilePath = $PROFILE
 }
 
 
