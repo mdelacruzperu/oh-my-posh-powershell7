@@ -44,10 +44,10 @@ $Global:Fonts = @(
 # Description: Installs or updates the Oh My Posh environment for PowerShell.
 function Install-Environment {
     param (
-        [switch]$Update,   # Indicates whether the action is an update
+        [switch]$Update   # Indicates whether the action is an update
     )
 
-    # Step 1: Validate the operation and prepare the environment
+    # Step 0: Validate the operation and prepare the environment
     Write-Host "🔄 Starting operation..." -ForegroundColor Cyan
 
     if ($Update -and -not (Test-Path $Global:ConfigFile)) {
@@ -66,9 +66,8 @@ function Install-Environment {
         return
     }
 
-    # Step 2: Verify and update the PowerShell profile
+    # Step 1: Check and update the PowerShell profile if needed
     if ($Update) {
-        # Simulated new remote profile date
         $FakeRemoteLastModified = Get-Date "2024-12-03T00:00:00Z"
         $FakeProfileContent = @"
 # Simulated updated profile
@@ -84,7 +83,6 @@ Write-Host 'This is a simulated updated profile' -ForegroundColor Cyan
 
                 $FakeProfileContent | Set-Content -Path $PROFILE -Force
 
-                # Reload the profile
                 Debug-Log -Message "Reloading profile: $PROFILE" -Context "Configuration"
                 & $PROFILE
                 Write-Host "✔️ Profile updated and reloaded successfully." -ForegroundColor Green
@@ -99,7 +97,7 @@ Write-Host 'This is a simulated updated profile' -ForegroundColor Cyan
         }
     }
 
-    # Step 3: Load or initialize configuration
+    # Step 2: Load or initialize configuration
     try {
         $Global:Config = Get-Config
 
@@ -122,7 +120,7 @@ Write-Host 'This is a simulated updated profile' -ForegroundColor Cyan
         return
     }
 
-    # Step 4: Update or install Oh My Posh binary
+    # Step 3: Update or install Oh My Posh binary
     try {
         $DownloadUrl = "https://github.com/JanDeDobbeleer/oh-my-posh/releases/latest/download/posh-windows-amd64.exe"
 
@@ -146,7 +144,7 @@ Write-Host 'This is a simulated updated profile' -ForegroundColor Cyan
         Write-Host "⚠️ Failed to install or update Oh My Posh binary. Check your internet connection or permissions." -ForegroundColor Red
     }
 
-    # Step 5: Update or install modules
+    # Step 4: Update or install modules
     foreach ($Module in $Global:ModulesToInstall) {
         Write-Host "Installing or updating module $($Module.Name)..." -ForegroundColor Cyan
         try {
@@ -163,7 +161,7 @@ Write-Host 'This is a simulated updated profile' -ForegroundColor Cyan
         }
     }
 
-    # Step 6: Install or update Nerd Fonts
+    # Step 5: Install or update Nerd Fonts
     try {
         $FontDirectory = Join-Path -Path $Global:BaseDirectory -ChildPath "NerdFonts"
         Ensure-Directory -DirectoryPath $FontDirectory
@@ -189,7 +187,7 @@ Write-Host 'This is a simulated updated profile' -ForegroundColor Cyan
         Write-Host "⚠️ Failed to download or install Nerd Fonts. Error: $_" -ForegroundColor Red
     }
 
-    # Step 7: Update or install themes
+    # Step 6: Update or install themes
     try {
         Ensure-Directory -DirectoryPath $Global:ThemeDirectory
 
@@ -208,7 +206,7 @@ Write-Host 'This is a simulated updated profile' -ForegroundColor Cyan
         Write-Host "⚠️ Failed to install or update themes. Error: $_" -ForegroundColor Red
     }
 
-    # Step 8: Finalize and save configuration
+    # Step 7: Finalize and save configuration
     try {
         $Global:Config.IsConfigured = $true
         Save-Config -Config $Global:Config -Silent
