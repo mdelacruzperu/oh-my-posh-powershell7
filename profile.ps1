@@ -43,31 +43,65 @@ $Global:Fonts = @(
 # Function: Install-Environment
 # Description: Installs or updates the Oh My Posh environment for PowerShell.
 function Install-Environment {
-    Write-Host "🔄 Starting installation or update of the Oh My Posh environment..." -ForegroundColor Cyan
+    param (
+        [switch]$Update,   # Indicates whether the action is an update
+        [switch]$DryRun    # Simulates the installation/update without making changes
+    )
+
+    # Step 0: Validate the operation and prepare the environment
+    Write-Host "🔄 Starting operation..." -ForegroundColor Cyan
+
+    if ($Update -and -not (Test-Path $Global:ConfigFile)) {
+        Write-Host "⚠️ No previous installation detected. Please run 'Install-Environment' first." -ForegroundColor Yellow
+        Write-Host "Hint: Use 'Install-Environment' to initialize your environment." -ForegroundColor Cyan
+        return
+    }
+
+    if (-not $Update -and (Test-Path $Global:ConfigFile)) {
+        Write-Host "⚠️ The environment is already installed. Did you mean to update? Use 'Update-Environment'." -ForegroundColor Yellow
+        return
+    }
+
+    if (-not (Test-Path $PROFILE)) {
+        Write-Host "⚠️ PowerShell profile script not found. Re-initialize your profile with the correct script." -ForegroundColor Yellow
+        Write-Host "Hint: Check the documentation or ensure the profile script is properly loaded." -ForegroundColor Cyan
+        return
+    }
+
+    # If DryRun is specified, simulate the process and exit
+    if ($DryRun) {
+        Write-Host "🔄 Simulating installation or update of the Oh My Posh environment..." -ForegroundColor Cyan
+        if ($Update) {
+            Write-Host "Simulating environment update..." -ForegroundColor Green
+        } else {
+            Write-Host "Simulating fresh installation..." -ForegroundColor Green
+        }
+        Write-Host "✔️ Configuration loaded successfully (simulated)." -ForegroundColor Green
+        Write-Host "✔️ Simulated operation completed successfully!" -ForegroundColor Green
+        return
+    }    
 
     # Step 1: Load or initialize configuration
     try {
         $Global:Config = Get-Config
 
         if (-not $Global:Config) {
-            Write-Host "Configuration not found. Initializing default configuration..." -ForegroundColor Yellow
-
-            # Define default configuration
-            $Global:Config = [PSCustomObject]@{
-                ThemeName       = $Global:DefaultThemes[0]
-                IsConfigured    = $false
-                ThemeDisabled   = $false
-                FileExists      = $true
-                LastUpdateCheck = (Get-Date).ToString("o")
+            if ($DryRun) {
+                Write-Host "Configuration not found. Simulating default configuration initialization..." -ForegroundColor Yellow
+            } else {
+                Write-Host "Configuration not found. Initializing default configuration..." -ForegroundColor Yellow
+                $Global:Config = [PSCustomObject]@{
+                    ThemeName       = $Global:DefaultThemes[0]
+                    IsConfigured    = $false
+                    ThemeDisabled   = $false
+                    FileExists      = $true
+                    LastUpdateCheck = (Get-Date).ToString("o")
+                }
+                Save-Config -Config $Global:Config -Silent
+                Write-Host "✔️ Default configuration initialized and saved." -ForegroundColor Green
             }
-
-            # Save the newly initialized configuration
-            Save-Config -Config $Global:Config -Silent
-            Write-Host "✔️ Default configuration initialized and saved." -ForegroundColor Green
         } else {
-            # Mark as configured and save any changes
-            $Global:Config.IsConfigured = $true
-            Save-Config -Config $Global:Config -Silent
+            Write-Host "✔️ Configuration loaded successfully." -ForegroundColor Green
         }
     } catch {
         Write-Host "❌ Critical error initializing configuration: $_" -ForegroundColor Red
@@ -79,20 +113,23 @@ function Install-Environment {
         $DownloadUrl = "https://github.com/JanDeDobbeleer/oh-my-posh/releases/latest/download/posh-windows-amd64.exe"
 
         if (-not (Test-Path $Global:BinaryPath)) {
-            Write-Host "Downloading Oh My Posh binary..." -ForegroundColor Cyan
-            New-Item -ItemType Directory -Path (Split-Path -Path $Global:BinaryPath -Parent) -Force | Out-Null
-            Invoke-WebRequest -Uri $DownloadUrl -OutFile $Global:BinaryPath -ErrorAction Stop
-            Write-Host "✔️ Oh My Posh binary installed successfully." -ForegroundColor Green
-        } else {
-            # Check for updates
-            Write-Host "Checking for updates to the Oh My Posh binary..." -ForegroundColor Cyan
-            $RemoteBinary = Invoke-WebRequest -Uri $DownloadUrl -Method HEAD -ErrorAction Stop
-            $LocalBinary = Get-Item $Global:BinaryPath
-            if ($RemoteBinary.Headers."Content-Length" -ne $LocalBinary.Length) {
+            Write-Host ($DryRun ? "Simulating download of Oh My Posh binary..." : "Downloading Oh My Posh binary...") -ForegroundColor Cyan
+            if (-not $DryRun) {
+                New-Item -ItemType Directory -Path (Split-Path -Path $Global:BinaryPath -Parent) -Force | Out-Null
                 Invoke-WebRequest -Uri $DownloadUrl -OutFile $Global:BinaryPath -ErrorAction Stop
-                Write-Host "✔️ Oh My Posh binary updated successfully." -ForegroundColor Green
-            } else {
-                Write-Host "✔️ Oh My Posh binary is already up to date." -ForegroundColor Green
+                Write-Host "✔️ Oh My Posh binary installed successfully." -ForegroundColor Green
+            }
+        } else {
+            Write-Host "Checking for updates to the Oh My Posh binary..." -ForegroundColor Cyan
+            if (-not $DryRun) {
+                $RemoteBinary = Invoke-WebRequest -Uri $DownloadUrl -Method HEAD -ErrorAction Stop
+                $LocalBinary = Get-Item $Global:BinaryPath
+                if ($RemoteBinary.Headers."Content-Length" -ne $LocalBinary.Length) {
+                    Invoke-WebRequest -Uri $DownloadUrl -OutFile $Global:BinaryPath -ErrorAction Stop
+                    Write-Host "✔️ Oh My Posh binary updated successfully." -ForegroundColor Green
+                } else {
+                    Write-Host "✔️ Oh My Posh binary is already up to date." -ForegroundColor Green
+                }
             }
         }
     } catch {
@@ -101,18 +138,21 @@ function Install-Environment {
 
     # Step 3: Update or install modules
     foreach ($Module in $Global:ModulesToInstall) {
-        try {
-            if (Get-InstalledModule -Name $Module.Name -ErrorAction SilentlyContinue) {
-                Write-Host "Module $($Module.Name) is already installed. Checking for updates..." -ForegroundColor Yellow
-                Update-Module -Name $Module.Name -Scope CurrentUser -Force -ErrorAction SilentlyContinue
-                Write-Host "✔️ Module $($Module.Name) is up to date." -ForegroundColor Green
-            } else {
-                Write-Host "Installing module: $($Module.Name) - $($Module.Description)" -ForegroundColor Cyan
-                Install-Module -Name $Module.Name -Scope CurrentUser -Force -ErrorAction Stop
-                Write-Host "✔️ Module $($Module.Name) installed successfully." -ForegroundColor Green
+        Write-Host ($DryRun ? "Simulating installation or update of module $($Module.Name)..." : "Installing or updating module $($Module.Name)...") -ForegroundColor Cyan
+        if (-not $DryRun) {
+            try {
+                if (Get-InstalledModule -Name $Module.Name -ErrorAction SilentlyContinue) {
+                    Write-Host "Module $($Module.Name) is already installed. Checking for updates..." -ForegroundColor Yellow
+                    Update-Module -Name $Module.Name -Scope CurrentUser -Force -ErrorAction SilentlyContinue
+                    Write-Host "✔️ Module $($Module.Name) is up to date." -ForegroundColor Green
+                } else {
+                    Write-Host "Installing module: $($Module.Name) - $($Module.Description)" -ForegroundColor Cyan
+                    Install-Module -Name $Module.Name -Scope CurrentUser -Force -ErrorAction Stop
+                    Write-Host "✔️ Module $($Module.Name) installed successfully." -ForegroundColor Green
+                }
+            } catch {
+                Write-Host "⚠️ Failed to install or update module $($Module.Name). Error: $_" -ForegroundColor Red
             }
-        } catch {
-            Write-Host "⚠️ Failed to install or update module $($Module.Name). Error: $_" -ForegroundColor Red
         }
     }
 
@@ -124,17 +164,23 @@ function Install-Environment {
         foreach ($Font in $Global:Fonts) {
             $FontPath = Join-Path -Path $FontDirectory -ChildPath "$($Font.Name).zip"
             if (-not (Test-Path $FontPath)) {
-                Write-Host "Downloading Nerd Font: $($Font.Name)..." -ForegroundColor Cyan
-                Invoke-WebRequest -Uri $Font.Uri -OutFile $FontPath -ErrorAction Stop
-                Expand-Archive -Path $FontPath -DestinationPath $FontDirectory -Force
-                Remove-Item $FontPath
-                Write-Host "✔️ Font $($Font.Name) installed successfully in $FontDirectory." -ForegroundColor Green
+                Write-Host ($DryRun ? "Simulating download of Nerd Font: $($Font.Name)..." : "Downloading Nerd Font: $($Font.Name)...") -ForegroundColor Cyan
+                if (-not $DryRun) {
+                    Invoke-WebRequest -Uri $Font.Uri -OutFile $FontPath -ErrorAction Stop
+                    Expand-Archive -Path $FontPath -DestinationPath $FontDirectory -Force
+                    Remove-Item $FontPath
+                    Write-Host "✔️ Font $($Font.Name) installed successfully in $FontDirectory." -ForegroundColor Green
+                }
             } else {
                 Write-Host "Font $($Font.Name) is already installed." -ForegroundColor Green
             }
         }
 
-        Write-Host "To use the Nerd Fonts, open the font folder and install the desired font manually." -ForegroundColor Yellow
+        if ($DryRun) {
+            Write-Host "Simulating Nerd Fonts setup. No actual installation performed." -ForegroundColor Yellow
+        } else {
+            Write-Host "To use the Nerd Fonts, open the font folder and install the desired font manually." -ForegroundColor Yellow
+        }
     } catch {
         Write-Host "⚠️ Failed to download or install Nerd Fonts. Error: $_" -ForegroundColor Red
     }
@@ -145,12 +191,12 @@ function Install-Environment {
 
         foreach ($Theme in $Global:DefaultThemes) {
             $ThemePath = Join-Path -Path $Global:ThemeDirectory -ChildPath "$Theme.omp.json"
-            if (-not (Test-Path $ThemePath)) {
-                Write-Host "Downloading theme: $Theme..." -ForegroundColor Cyan
+            Write-Host ($DryRun ? "Simulating theme setup: $Theme..." : "Downloading theme: $Theme...") -ForegroundColor Cyan
+            if (-not $DryRun -and -not (Test-Path $ThemePath)) {
                 $ThemeUrl = "https://raw.githubusercontent.com/JanDeDobbeleer/oh-my-posh/main/themes/$Theme.omp.json"
                 Invoke-WebRequest -Uri $ThemeUrl -OutFile $ThemePath -ErrorAction Stop
                 Write-Host "✔️ Theme $Theme installed successfully." -ForegroundColor Green
-            } else {
+            } elseif (-not $DryRun) {
                 Write-Host "Theme $Theme is already installed." -ForegroundColor Green
             }
         }
@@ -159,16 +205,27 @@ function Install-Environment {
     }
 
     # Step 6: Finalize and save configuration
-    try {
-        $Global:Config.IsConfigured = $true
-        Save-Config -Config $Global:Config -Silent
-        Write-Host "✔️ Configuration saved successfully." -ForegroundColor Green
-    } catch {
-        Write-Host "⚠️ Failed to save configuration. Some settings may not persist." -ForegroundColor Yellow
+    if (-not $DryRun) {
+        try {
+            $Global:Config.IsConfigured = $true
+            Save-Config -Config $Global:Config -Silent
+            Write-Host ($Update ? "✔️ Configuration updated successfully." : "✔️ Configuration initialized successfully.") -ForegroundColor Green
+        } catch {
+            Write-Host "⚠️ Failed to save configuration. Some settings may not persist." -ForegroundColor Yellow
+        }
     }
 
-    Write-Host "🎉 Installation or update of the Oh My Posh environment is complete!" -ForegroundColor Green
-    Write-Host "Tip: Run 'Show-Help' to explore available commands and features." -ForegroundColor Magenta
+    Write-Host ($DryRun ? "🎉 Dry-run completed successfully!" : "🎉 Installation or update of the Oh My Posh environment is complete!") -ForegroundColor Green
+}
+
+# Function: Update-Environment
+# Description: Updates the Oh My Posh environment, passing the optional -DryRun parameter.
+function Update-Environment {
+    param (
+        [switch]$DryRun
+    )
+
+    Install-Environment -Update -DryRun:$DryRun
 }
 
 # Function: Uninstall-Environment
