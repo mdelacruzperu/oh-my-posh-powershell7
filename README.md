@@ -19,6 +19,7 @@ Transform your PowerShell experience with this streamlined script! Designed to a
 - **Module Management**: Includes popular modules like **Terminal-Icons**.
 - **Performance Optimized**: Ensures startup times stay under 500ms.
 - **Easy Cleanup**: Fully reversible with `Uninstall-Environment`.
+- **Custom Profile Support**: Add personal customizations with `Edit-CustomProfile`.
 
 ---
 
@@ -71,6 +72,7 @@ If you prefer to review the script before running it:
 4. **Installs PowerShell modules:** Includes tools like **Terminal-Icons**.  
 5. **Manages themes:** Downloads default themes and lets you apply or reset them easily.  
 6. **Customizes the environment:** Configures a personalized PowerShell profile.
+7. **Supports Custom Profiles:** Edit your own `CustomProfile.ps1` for personalized commands.
 
 ---
 
@@ -88,6 +90,7 @@ If you prefer to review the script before running it:
 - `Uninstall-Environment`: Removes all customizations and resets to default.
 - `Set-Theme -ThemeName <name>`: Applies a specific theme (e.g., `Set-Theme -ThemeName peru`).
 - `List-Themes [-Remote]`: Lists available themes. Use `-Remote` to fetch remote themes from GitHub.
+- `Edit-CustomProfile`: Opens `CustomProfile.ps1` for editing custom commands.
 
 ---
 

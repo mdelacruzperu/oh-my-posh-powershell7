@@ -167,21 +167,28 @@ Write-Host 'This is a simulated updated profile' -ForegroundColor Cyan
         Ensure-Directory -DirectoryPath $FontDirectory
 
         foreach ($Font in $Global:Fonts) {
-            $FontPath = Join-Path -Path $FontDirectory -ChildPath "$($Font.Name).zip"
-            if (-not (Test-Path $FontPath)) {
+            $FontZipPath = Join-Path -Path $FontDirectory -ChildPath "$($Font.Name).zip"
+            $FontFolderPath = Join-Path -Path $FontDirectory -ChildPath "$($Font.Name)"
+
+            if (-not (Test-Path $FontFolderPath)) {
                 Write-Host "Downloading Nerd Font: $($Font.Name)..." -ForegroundColor Cyan
-                Invoke-WebRequest -Uri $Font.Uri -OutFile $FontPath -ErrorAction Stop
-                Expand-Archive -Path $FontPath -DestinationPath $FontDirectory -Force
-                Remove-Item $FontPath
-                Write-Host "✔️ Font $($Font.Name) installed successfully in $FontDirectory." -ForegroundColor Green
+                Invoke-WebRequest -Uri $Font.Uri -OutFile $FontZipPath -ErrorAction Stop
+
+                # Create a subdirectory for the font and extract files into it
+                Ensure-Directory -DirectoryPath $FontFolderPath
+                Expand-Archive -Path $FontZipPath -DestinationPath $FontFolderPath -Force
+
+                # Remove the ZIP file after extraction
+                Remove-Item $FontZipPath -Force
+                Write-Host "✔️ Font $($Font.Name) installed successfully in $FontFolderPath." -ForegroundColor Green
             } else {
-                Write-Host "Font $($Font.Name) is already installed." -ForegroundColor Green
+                Write-Host "Font $($Font.Name) is already installed in $FontFolderPath." -ForegroundColor Green
             }
         }
 
         Write-Host "ℹ️ To fully enable Nerd Fonts, follow these steps:" -ForegroundColor Yellow
         Write-Host "   1. Open the folder: $FontDirectory" -ForegroundColor Cyan
-        Write-Host "   2. Install the desired font by double-clicking it and selecting 'Install'." -ForegroundColor Cyan
+        Write-Host "   2. Open the subfolder of your desired font and double-click to install." -ForegroundColor Cyan
         Write-Host "   3. Update your terminal settings to use the installed font (e.g., 'CaskaydiaCove Nerd Font')." -ForegroundColor Cyan
     } catch {
         Write-Host "⚠️ Failed to download or install Nerd Fonts. Error: $_" -ForegroundColor Red
@@ -214,6 +221,8 @@ Write-Host 'This is a simulated updated profile' -ForegroundColor Cyan
     } catch {
         Write-Host "⚠️ Failed to save configuration. Some settings may not persist." -ForegroundColor Yellow
     }
+
+    & $PROFILE
 
     Write-Host ($Update ? "🎉 Update of the Oh My Posh environment is complete!" : "🎉 Installation of the Oh My Posh environment is complete!") -ForegroundColor Green
 }
@@ -264,15 +273,15 @@ function Uninstall-Environment {
     $ThemesRemoved = $false
     try {
         if (Test-Path $Global:ThemeDirectory) {
-            Write-Host "Removing themes..." -ForegroundColor Cyan
+            Write-Host "Removing themes directory..." -ForegroundColor Cyan
             Remove-Item -Path $Global:ThemeDirectory -Recurse -Force
-            Write-Host "✔️ Themes removed successfully." -ForegroundColor Green
+            Write-Host "✔️ Themes directory removed successfully." -ForegroundColor Green
             $ThemesRemoved = $true
         } else {
-            Write-Host "ℹ️ No themes found to remove." -ForegroundColor Cyan
+            Write-Host "ℹ️ Themes directory not found. Nothing to remove." -ForegroundColor Cyan
         }
     } catch {
-        Write-Host "❌ Failed to remove themes. Error: $_" -ForegroundColor Red
+        Write-Host "❌ Failed to remove themes directory. Error: $_" -ForegroundColor Red
     }
 
     # Step 4: Remove configuration
@@ -358,6 +367,11 @@ function Set-Theme {
         [switch]$Silent
     )
 
+    # Validate the environment
+    if (-not (Validate-Environment -RequiredComponent "Binary") -or -not (Validate-Environment -RequiredComponent "Themes")) {
+        return
+    }
+
     # Ensure the themes directory exists
     Ensure-Directory -DirectoryPath $Global:ThemeDirectory
 
@@ -414,6 +428,11 @@ function List-Themes {
         [switch]$Remote,     # Show remote themes if specified
         [switch]$Force       # Force refresh of remote themes cache
     )
+
+    # Validate the environment
+    if (-not (Validate-Environment -RequiredComponent "Binary") -or -not (Validate-Environment -RequiredComponent "Themes")) {
+        return
+    }
 
     # Ensure the themes directory exists
     Ensure-Directory -DirectoryPath $Global:ThemeDirectory
@@ -482,6 +501,11 @@ function Edit-Custom-Profile {
         [string]$CustomProfilePath = (Join-Path -Path (Split-Path -Parent $PROFILE) -ChildPath "CustomProfile.ps1")
     )
 
+    # Validate the environment
+    if (-not (Validate-Environment -RequiredComponent "Binary") -or -not (Validate-Environment -RequiredComponent "Themes")) {
+        return
+    }
+
     try {
         if (-not (Test-Path $CustomProfilePath)) {
             # Create the custom profile with basic instructions
@@ -521,27 +545,30 @@ function Greet-Me {
 }
 
 # Function: Show-Help
-# Description: Displays a detailed list of user-invocable commands for Oh My Posh management.
+# Description: Displays detailed information about the available commands and their functionality.
 function Show-Help {
     Write-Host "`n=== Help: PowerShell Environment Commands ===`n" -ForegroundColor Cyan
 
     Write-Host "Commands available for managing your PowerShell environment:" -ForegroundColor Green
-    Write-Host "1. Install-Environment     : Installs or updates the Oh My Posh environment, including binary, modules, and themes." -ForegroundColor Cyan
-    Write-Host "2. Uninstall-Environment   : Uninstalls the environment, removing binary, modules, themes, and configurations." -ForegroundColor Cyan
+    Write-Host "1. Install-Environment     : Installs the Oh My Posh environment, including binary, modules, and themes." -ForegroundColor Cyan
+    Write-Host "2. Update-Environment      : Updates the environment if already installed." -ForegroundColor Cyan
     Write-Host "3. Set-Theme               : Applies a specific Oh My Posh theme. Example: 'Set-Theme -ThemeName peru'." -ForegroundColor Cyan
     Write-Host "4. List-Themes             : Lists available themes. Use '-Remote' for remote themes, and '-Force' to refresh cache." -ForegroundColor Cyan
+    Write-Host "5. Uninstall-Environment   : Uninstalls the environment, removing binary, modules, themes, and configurations." -ForegroundColor Cyan
+    Write-Host "6. Edit-Custom-Profile     : Creates or edits a custom profile script for user-defined functions." -ForegroundColor Cyan
 
     Write-Host "`nExamples of usage:" -ForegroundColor Green
     Write-Host "  Install-Environment" -ForegroundColor Yellow
-    Write-Host "  Uninstall-Environment" -ForegroundColor Yellow
+    Write-Host "  Update-Environment" -ForegroundColor Yellow
     Write-Host "  Set-Theme -ThemeName peru" -ForegroundColor Yellow
     Write-Host "  List-Themes -Remote -Force" -ForegroundColor Yellow
+    Write-Host "  Edit-Custom-Profile" -ForegroundColor Yellow
 
     Write-Host "`nAdditional Tips:" -ForegroundColor Green
-    Write-Host "✔️ To fully experience the customization, install Nerd Fonts from the Fonts directory generated during installation." -ForegroundColor Magenta
-    Write-Host "✔️ Explore available themes with 'List-Themes' and apply your favorite using 'Set-Theme'." -ForegroundColor Magenta
+    Write-Host "✔️ Ensure the environment is installed before running commands like 'Set-Theme' or 'List-Themes'." -ForegroundColor Magenta
+    Write-Host "✔️ Use 'Edit-Custom-Profile' to define your own functions without risking conflicts during updates." -ForegroundColor Magenta
 
-    Write-Host "`nTip: Check the full README for more details and examples." -ForegroundColor Magenta
+    Write-Host "`nTip: For a fresh setup, start with 'Install-Environment'. If already installed, use 'Update-Environment'." -ForegroundColor Magenta
     Write-Host "`n=== End of Help ===`n" -ForegroundColor Cyan
 }
 
@@ -596,7 +623,41 @@ function Measure-Time {
         }
     }
 }
-# Function to ensure a directory exists
+
+# Function: Validate-Environment
+# Description: Checks if the Oh My Posh environment is correctly installed and configured.
+function Validate-Environment {
+    # Initialize a flag to track validation status
+    $IsValid = $true
+
+    # Check if the configuration exists
+    if (-not (Test-Path $Global:ConfigFile)) {
+        Write-Host "⚠️ The environment is not installed. Please run 'Install-Environment' to set up the environment." -ForegroundColor Yellow
+        $IsValid = $false
+    }
+
+    # Check for binary
+    if (-not (Test-Path $Global:BinaryPath)) {
+        Write-Host "⚠️ The Oh My Posh binary is missing. Please run 'Install-Environment' to set up the environment." -ForegroundColor Yellow
+        $IsValid = $false
+    }
+
+    # Check for themes directory
+    if (-not (Test-Path $Global:ThemeDirectory)) {
+        Write-Host "⚠️ The Themes directory is missing. Please run 'Install-Environment' to set up the environment." -ForegroundColor Yellow
+        $IsValid = $false
+    }
+
+    # Provide a summary and return the validation status
+    if (-not $IsValid) {
+        Write-Host "ℹ️ Some components are missing or not configured. Please address the issues above by running 'Install-Environment'." -ForegroundColor Cyan
+    }
+
+    return $IsValid
+}
+
+# Function: Ensure-Directory
+# Description: Function to ensure a directory exists
 function Ensure-Directory {
     param ([string]$DirectoryPath)
     if (-not (Test-Path $DirectoryPath)) {
@@ -747,9 +808,6 @@ try {
     # Validate or create base directory
     Ensure-Directory -DirectoryPath $Global:BaseDirectory
 
-    # Ensure theme directory exists
-    Ensure-Directory -DirectoryPath $Global:ThemeDirectory
-
     # Load configuration
     $Global:Config = Get-Config
     if (-not $Global:Config) {
@@ -787,12 +845,7 @@ try {
     if (Test-Path $CustomProfilePath) {
         Write-Host "✔️ Loading custom profile: $CustomProfilePath" -ForegroundColor Green
         & $CustomProfilePath
-    } else {
-        Write-Host "ℹ️ No custom profile found. Skipping customizations." -ForegroundColor Yellow
     }
-
-    Debug-Log "Base Directory: $Global:BaseDirectory" -Context "Configuration"
-    Debug-Log "Theme Directory: $Global:ThemeDirectory" -Context "Configuration"
 } catch {
     Write-Host "❌ Error during profile setup: $_" -ForegroundColor Red
     Debug-Log "Error during profile setup: $_" -Context "Error"
