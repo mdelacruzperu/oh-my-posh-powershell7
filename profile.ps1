@@ -52,13 +52,12 @@ function Install-Environment {
     Write-Host "🔄 Starting operation..." -ForegroundColor Cyan
 
     if ($Update -and -not (Test-Path $Global:ConfigFile)) {
-        Write-Host "⚠️ No previous installation detected. Please run 'Install-Environment' first." -ForegroundColor Yellow
-        Write-Host "Hint: Use 'Install-Environment' to initialize your environment." -ForegroundColor Cyan
+        Write-Host "⚠️ No existing installation found. Please run 'Install-Environment' to set up your environment." -ForegroundColor Yellow
         return
     }
 
     if (-not $Update -and (Test-Path $Global:ConfigFile)) {
-        Write-Host "⚠️ The environment is already installed. Did you mean to update? Use 'Update-Environment'." -ForegroundColor Yellow
+        Write-Host "⚠️ An existing installation is detected. Did you mean to update? Use 'Update-Environment'." -ForegroundColor Yellow
         return
     }
 
@@ -79,27 +78,59 @@ function Install-Environment {
         Write-Host "✔️ Configuration loaded successfully (simulated)." -ForegroundColor Green
         Write-Host "✔️ Simulated operation completed successfully!" -ForegroundColor Green
         return
-    }    
+    }
+
+    # Step 0.5: Verificar y actualizar el perfil si es necesario
+    if ($Update) {
+        # Fecha fija para simular la última modificación remota
+        $FakeRemoteLastModified = Get-Date "2024-12-03T00:00:00Z"
+        # Simular un nuevo contenido para el perfil (opcional, puedes usar contenido fijo)
+        $FakeProfileContent = @"
+# Simulated updated profile
+Write-Host 'This is a simulated updated profile' -ForegroundColor Cyan
+"@
+
+        try {
+            # Obtener la fecha de modificación del archivo local
+            $LocalLastModified = (Get-Item $PROFILE).LastWriteTime
+
+            if ($FakeRemoteLastModified -gt $LocalLastModified) {
+                Write-Host "🔄 A newer version of the PowerShell profile is available." -ForegroundColor Yellow
+                Write-Host "   Applying the updated profile now..." -ForegroundColor Cyan
+
+                # Guardar el nuevo contenido en el perfil local
+                $FakeProfileContent | Set-Content -Path $PROFILE -Force
+
+                # Recargar el perfil
+                Debug-Log -Message "Reloading profile: $PROFILE" -Context "Configuration"
+                & $PROFILE
+                Write-Host "✔️ Profile updated and reloaded successfully." -ForegroundColor Green
+                Write-Host "⚠️ Please re-execute your command to apply the new settings." -ForegroundColor Yellow
+                return
+            } else {
+                Write-Host "✔️ The PowerShell profile is already up to date. No changes needed." -ForegroundColor Green
+            }
+        } catch {
+            Write-Host "❌ Failed to verify or update the PowerShell profile. Error: $_" -ForegroundColor Red
+            Debug-Log -Message "Error during local profile update: $_" -Context "Error"
+        }
+    }
 
     # Step 1: Load or initialize configuration
     try {
         $Global:Config = Get-Config
 
         if (-not $Global:Config) {
-            if ($DryRun) {
-                Write-Host "Configuration not found. Simulating default configuration initialization..." -ForegroundColor Yellow
-            } else {
-                Write-Host "Configuration not found. Initializing default configuration..." -ForegroundColor Yellow
-                $Global:Config = [PSCustomObject]@{
-                    ThemeName       = $Global:DefaultThemes[0]
-                    IsConfigured    = $false
-                    ThemeDisabled   = $false
-                    FileExists      = $true
-                    LastUpdateCheck = (Get-Date).ToString("o")
-                }
-                Save-Config -Config $Global:Config -Silent
-                Write-Host "✔️ Default configuration initialized and saved." -ForegroundColor Green
+            Write-Host "Configuration not found. Initializing default configuration..." -ForegroundColor Yellow
+            $Global:Config = [PSCustomObject]@{
+                ThemeName       = $Global:DefaultThemes[0]
+                IsConfigured    = $false
+                ThemeDisabled   = $false
+                FileExists      = $true
+                LastUpdateCheck = (Get-Date).ToString("o")
             }
+            Save-Config -Config $Global:Config -Silent
+            Write-Host "✔️ Default configuration initialized and saved." -ForegroundColor Green
         } else {
             Write-Host "✔️ Configuration loaded successfully." -ForegroundColor Green
         }
@@ -113,23 +144,19 @@ function Install-Environment {
         $DownloadUrl = "https://github.com/JanDeDobbeleer/oh-my-posh/releases/latest/download/posh-windows-amd64.exe"
 
         if (-not (Test-Path $Global:BinaryPath)) {
-            Write-Host ($DryRun ? "Simulating download of Oh My Posh binary..." : "Downloading Oh My Posh binary...") -ForegroundColor Cyan
-            if (-not $DryRun) {
-                New-Item -ItemType Directory -Path (Split-Path -Path $Global:BinaryPath -Parent) -Force | Out-Null
-                Invoke-WebRequest -Uri $DownloadUrl -OutFile $Global:BinaryPath -ErrorAction Stop
-                Write-Host "✔️ Oh My Posh binary installed successfully." -ForegroundColor Green
-            }
+            Write-Host "Downloading Oh My Posh binary for first-time installation..." -ForegroundColor Cyan
+            New-Item -ItemType Directory -Path (Split-Path -Path $Global:BinaryPath -Parent) -Force | Out-Null
+            Invoke-WebRequest -Uri $DownloadUrl -OutFile $Global:BinaryPath -ErrorAction Stop
+            Write-Host "✔️ Oh My Posh binary installed successfully." -ForegroundColor Green
         } else {
-            Write-Host "Checking for updates to the Oh My Posh binary..." -ForegroundColor Cyan
-            if (-not $DryRun) {
-                $RemoteBinary = Invoke-WebRequest -Uri $DownloadUrl -Method HEAD -ErrorAction Stop
-                $LocalBinary = Get-Item $Global:BinaryPath
-                if ($RemoteBinary.Headers."Content-Length" -ne $LocalBinary.Length) {
-                    Invoke-WebRequest -Uri $DownloadUrl -OutFile $Global:BinaryPath -ErrorAction Stop
-                    Write-Host "✔️ Oh My Posh binary updated successfully." -ForegroundColor Green
-                } else {
-                    Write-Host "✔️ Oh My Posh binary is already up to date." -ForegroundColor Green
-                }
+            Write-Host "Verifying and updating Oh My Posh binary if necessary..." -ForegroundColor Cyan
+            $RemoteBinary = Invoke-WebRequest -Uri $DownloadUrl -Method HEAD -ErrorAction Stop
+            $LocalBinary = Get-Item $Global:BinaryPath
+            if ($RemoteBinary.Headers."Content-Length" -ne $LocalBinary.Length) {
+                Invoke-WebRequest -Uri $DownloadUrl -OutFile $Global:BinaryPath -ErrorAction Stop
+                Write-Host "✔️ Oh My Posh binary updated successfully." -ForegroundColor Green
+            } else {
+                Write-Host "✔️ Oh My Posh binary is already up to date." -ForegroundColor Green
             }
         }
     } catch {
@@ -138,21 +165,18 @@ function Install-Environment {
 
     # Step 3: Update or install modules
     foreach ($Module in $Global:ModulesToInstall) {
-        Write-Host ($DryRun ? "Simulating installation or update of module $($Module.Name)..." : "Installing or updating module $($Module.Name)...") -ForegroundColor Cyan
-        if (-not $DryRun) {
-            try {
-                if (Get-InstalledModule -Name $Module.Name -ErrorAction SilentlyContinue) {
-                    Write-Host "Module $($Module.Name) is already installed. Checking for updates..." -ForegroundColor Yellow
-                    Update-Module -Name $Module.Name -Scope CurrentUser -Force -ErrorAction SilentlyContinue
-                    Write-Host "✔️ Module $($Module.Name) is up to date." -ForegroundColor Green
-                } else {
-                    Write-Host "Installing module: $($Module.Name) - $($Module.Description)" -ForegroundColor Cyan
-                    Install-Module -Name $Module.Name -Scope CurrentUser -Force -ErrorAction Stop
-                    Write-Host "✔️ Module $($Module.Name) installed successfully." -ForegroundColor Green
-                }
-            } catch {
-                Write-Host "⚠️ Failed to install or update module $($Module.Name). Error: $_" -ForegroundColor Red
+        Write-Host "Installing or updating module $($Module.Name)..." -ForegroundColor Cyan
+        try {
+            if (Get-InstalledModule -Name $Module.Name -ErrorAction SilentlyContinue) {
+                Write-Host "Module $($Module.Name) is already installed. Checking for updates..." -ForegroundColor Yellow
+                Update-Module -Name $Module.Name -Scope CurrentUser -Force -ErrorAction SilentlyContinue
+                Write-Host "✔️ Module $($Module.Name) is up to date." -ForegroundColor Green
+            } else {
+                Install-Module -Name $Module.Name -Scope CurrentUser -Force -ErrorAction Stop
+                Write-Host "✔️ Module $($Module.Name) installed successfully." -ForegroundColor Green
             }
+        } catch {
+            Write-Host "⚠️ Failed to install or update module $($Module.Name). Error: $_" -ForegroundColor Red
         }
     }
 
@@ -164,23 +188,20 @@ function Install-Environment {
         foreach ($Font in $Global:Fonts) {
             $FontPath = Join-Path -Path $FontDirectory -ChildPath "$($Font.Name).zip"
             if (-not (Test-Path $FontPath)) {
-                Write-Host ($DryRun ? "Simulating download of Nerd Font: $($Font.Name)..." : "Downloading Nerd Font: $($Font.Name)...") -ForegroundColor Cyan
-                if (-not $DryRun) {
-                    Invoke-WebRequest -Uri $Font.Uri -OutFile $FontPath -ErrorAction Stop
-                    Expand-Archive -Path $FontPath -DestinationPath $FontDirectory -Force
-                    Remove-Item $FontPath
-                    Write-Host "✔️ Font $($Font.Name) installed successfully in $FontDirectory." -ForegroundColor Green
-                }
+                Write-Host "Downloading Nerd Font: $($Font.Name)..." -ForegroundColor Cyan
+                Invoke-WebRequest -Uri $Font.Uri -OutFile $FontPath -ErrorAction Stop
+                Expand-Archive -Path $FontPath -DestinationPath $FontDirectory -Force
+                Remove-Item $FontPath
+                Write-Host "✔️ Font $($Font.Name) installed successfully in $FontDirectory." -ForegroundColor Green
             } else {
                 Write-Host "Font $($Font.Name) is already installed." -ForegroundColor Green
             }
         }
 
-        if ($DryRun) {
-            Write-Host "Simulating Nerd Fonts setup. No actual installation performed." -ForegroundColor Yellow
-        } else {
-            Write-Host "To use the Nerd Fonts, open the font folder and install the desired font manually." -ForegroundColor Yellow
-        }
+        Write-Host "ℹ️ To fully enable Nerd Fonts, follow these steps:" -ForegroundColor Yellow
+        Write-Host "   1. Open the folder: $FontDirectory" -ForegroundColor Cyan
+        Write-Host "   2. Install the desired font by double-clicking it and selecting 'Install'." -ForegroundColor Cyan
+        Write-Host "   3. Update your terminal settings to use the installed font (e.g., 'CaskaydiaCove Nerd Font')." -ForegroundColor Cyan
     } catch {
         Write-Host "⚠️ Failed to download or install Nerd Fonts. Error: $_" -ForegroundColor Red
     }
@@ -191,13 +212,13 @@ function Install-Environment {
 
         foreach ($Theme in $Global:DefaultThemes) {
             $ThemePath = Join-Path -Path $Global:ThemeDirectory -ChildPath "$Theme.omp.json"
-            Write-Host ($DryRun ? "Simulating theme setup: $Theme..." : "Downloading theme: $Theme...") -ForegroundColor Cyan
-            if (-not $DryRun -and -not (Test-Path $ThemePath)) {
+            if (-not (Test-Path $ThemePath)) {
+                Write-Host "Downloading and setting up theme: $Theme..." -ForegroundColor Cyan
                 $ThemeUrl = "https://raw.githubusercontent.com/JanDeDobbeleer/oh-my-posh/main/themes/$Theme.omp.json"
                 Invoke-WebRequest -Uri $ThemeUrl -OutFile $ThemePath -ErrorAction Stop
                 Write-Host "✔️ Theme $Theme installed successfully." -ForegroundColor Green
-            } elseif (-not $DryRun) {
-                Write-Host "Theme $Theme is already installed." -ForegroundColor Green
+            } else {
+                Write-Host "Verifying theme: $Theme... Already installed." -ForegroundColor Green
             }
         }
     } catch {
@@ -205,17 +226,15 @@ function Install-Environment {
     }
 
     # Step 6: Finalize and save configuration
-    if (-not $DryRun) {
-        try {
-            $Global:Config.IsConfigured = $true
-            Save-Config -Config $Global:Config -Silent
-            Write-Host ($Update ? "✔️ Configuration updated successfully." : "✔️ Configuration initialized successfully.") -ForegroundColor Green
-        } catch {
-            Write-Host "⚠️ Failed to save configuration. Some settings may not persist." -ForegroundColor Yellow
-        }
+    try {
+        $Global:Config.IsConfigured = $true
+        Save-Config -Config $Global:Config -Silent
+        Write-Host ($Update ? "✔️ Configuration updated successfully." : "✔️ Configuration initialized successfully.") -ForegroundColor Green
+    } catch {
+        Write-Host "⚠️ Failed to save configuration. Some settings may not persist." -ForegroundColor Yellow
     }
 
-    Write-Host ($DryRun ? "🎉 Dry-run completed successfully!" : "🎉 Installation or update of the Oh My Posh environment is complete!") -ForegroundColor Green
+    Write-Host ($Update ? "🎉 Update of the Oh My Posh environment is complete!" : "🎉 Installation of the Oh My Posh environment is complete!") -ForegroundColor Green
 }
 
 # Function: Update-Environment
@@ -479,6 +498,51 @@ function List-Themes {
     }
 }
 
+# Function: Edit-Custom-Profile
+# Description: Ensures the existence of a CustomProfile.ps1 file and opens it for the user to edit or create personal customizations.
+function Edit-Custom-Profile {
+    param (
+        [string]$CustomProfilePath = (Join-Path -Path (Split-Path -Parent $PROFILE) -ChildPath "CustomProfile.ps1")
+    )
+
+    try {
+        if (-not (Test-Path $CustomProfilePath)) {
+            # Create the custom profile with basic instructions
+            @"
+# ============================================
+# Custom PowerShell Profile
+# ============================================
+# Add your personal customizations and functions here.
+# This file is automatically loaded after the main profile.
+
+# Example Function:
+function Greet-Me {
+    Write-Host "Hello, $env:USERNAME! Welcome to your custom PowerShell environment!" -ForegroundColor Cyan
+}
+
+# Remember: Save your changes and reload the profile with `. $PROFILE` or restart PowerShell.
+"@ | Set-Content -Path $CustomProfilePath -Force
+
+            Write-Host "✔️ Custom profile created at: $CustomProfilePath" -ForegroundColor Green
+        } else {
+            Write-Host "ℹ️ Custom profile already exists at: $CustomProfilePath" -ForegroundColor Yellow
+        }
+
+        # Open the custom profile for editing
+        if ($env:EDITOR) {
+            Write-Host "Opening custom profile with default editor: $env:EDITOR" -ForegroundColor Cyan
+            & $env:EDITOR $CustomProfilePath
+        } else {
+            Write-Host "Opening custom profile with Notepad..." -ForegroundColor Cyan
+            Start-Process notepad.exe $CustomProfilePath
+        }
+
+        Write-Host "✔️ Remember to save your changes and reload the profile with '. $PROFILE' or restart PowerShell." -ForegroundColor Green
+    } catch {
+        Write-Host "❌ Failed to create or open the custom profile. Error: $_" -ForegroundColor Red
+    }
+}
+
 # Function: Show-Help
 # Description: Displays a detailed list of user-invocable commands for Oh My Posh management.
 function Show-Help {
@@ -739,6 +803,15 @@ try {
                 Write-Host "⚠️ Failed to import module '$($Module.Name)'. It may not be installed." -ForegroundColor Yellow
             }
         }
+    }
+
+    # Load custom profile if exists
+    $CustomProfilePath = Join-Path -Path (Split-Path -Parent $PROFILE) -ChildPath "CustomProfile.ps1"
+    if (Test-Path $CustomProfilePath) {
+        Write-Host "✔️ Loading custom profile: $CustomProfilePath" -ForegroundColor Green
+        & $CustomProfilePath
+    } else {
+        Write-Host "ℹ️ No custom profile found. Skipping customizations." -ForegroundColor Yellow
     }
 
     Debug-Log "Base Directory: $Global:BaseDirectory" -Context "Configuration"
