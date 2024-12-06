@@ -3,7 +3,7 @@
 ### Developed collaboratively with OpenAI Assistant ###
 
 # Define global debug mode
-$DebugMode = $false
+$DebugMode = $true
 
 if ($DebugMode) {
     Write-Host "#######################################" -ForegroundColor Red
@@ -720,40 +720,63 @@ function Ensure-Directory {
 }
 
 # Function: Get-Config
-# Description: Loads the configuration from a JSON file.
+# Description: Loads the configuration from a JSON file or creates a default configuration if none exists.
 function Get-Config {
-    Debug-Log "Attempting to load configuration from: $Global:ConfigFile" -Context "Configuration"
+    param (
+        [switch]$Silent # Suppresses user-facing messages if specified
+    )
+
+    $DefaultConfig = [PSCustomObject]@{
+        ThemeName       = "default"
+        IsConfigured    = $false
+        ThemeDisabled   = $false
+        FileExists      = $false
+        LastUpdateCheck = (Get-Date).ToString("o")
+    }
 
     try {
-        $Config = Get-Content -Path $Global:ConfigFile -ErrorAction Stop | ConvertFrom-Json
-        $Config.FileExists = $true
-        Debug-Log "Configuration loaded successfully: $Config" -Context "Configuration"
-        return $Config
+        # Attempt to load the configuration from file
+        if (Test-Path $Global:ConfigFile) {
+            $Config = Get-Content -Path $Global:ConfigFile -ErrorAction Stop | ConvertFrom-Json
+            Debug-Log "Configuration loaded from file: $Global:ConfigFile" -Context "Configuration"
+            if (-not $Silent) {
+                Write-Host "✔️ Configuration loaded successfully from: $Global:ConfigFile" -ForegroundColor Green
+            }
+        } else {
+            Debug-Log "No configuration file found. Default configuration will be used." -Context "Configuration"
+        }
     } catch {
-        Debug-Log "Configuration file missing or invalid: $_" -Context "Error"
-        return $null
+        Debug-Log "Failed to load configuration. Error: $_" -Context "Error"
     }
+
+    return $Config -or $DefaultConfig
 }
 
 # Function: Save-Config
-# Description: Saves configuration to JSON file, ensuring a readable format. Creates directories if needed.
+# Description: Saves configuration to a JSON file, ensuring format and directory creation.
 function Save-Config {
     param (
         [Parameter(Mandatory = $true)]
         [PSCustomObject]$Config,
-        [switch]$Silent # If specified, suppresses success messages
+        [switch]$Silent # Suppresses user-facing success messages if specified
     )
 
     try {
+        # Ensure the directory for the configuration file exists
         Ensure-Directory -DirectoryPath (Split-Path -Path $Global:ConfigFile -Parent)
+        
+        # Save the configuration to the file
         $Config | ConvertTo-Json -Depth 10 | Out-File -FilePath $Global:ConfigFile -Encoding UTF8 -Force
+        
+        # Log the operation and show success message if not in silent mode
+        Debug-Log "Configuration saved successfully to: $Global:ConfigFile" -Context "Configuration"
         if (-not $Silent) {
             Write-Host "✔️ Configuration saved successfully to: $Global:ConfigFile" -ForegroundColor Green
         }
-        Debug-Log "Configuration saved: $Config" -Context "Configuration"
     } catch {
-        Write-Host "❌ Failed to save configuration. Error: $_" -ForegroundColor Red
+        # Handle errors and log them
         Debug-Log "Failed to save configuration. Error: $_" -Context "Error"
+        Write-Host "❌ Failed to save configuration. Error: $_" -ForegroundColor Red
     }
 }
 
@@ -856,24 +879,25 @@ try {
     # Validate or create base directory
     Ensure-Directory -DirectoryPath $Global:BaseDirectory
 
-    # Load configuration
-    $Global:Config = Get-Config
-    if (-not $Global:Config) {
-        Write-Host ""
-        Write-Host "👋 Welcome to your enhanced PowerShell experience!" -ForegroundColor Cyan
-        Write-Host "⚡ To unlock the full potential of this profile, please run:" -ForegroundColor Green
-        Write-Host "   Install-Environment" -ForegroundColor Yellow
-        Write-Host "This will set up themes, icons, and additional features." -ForegroundColor Green
-        Write-Host ""
-    } else {
-        Write-Host "✔️ Profile successfully loaded and ready to use." -ForegroundColor Green
-        Debug-Log "Configuration loaded successfully: $Global:Config" -Context "Configuration"
+# Load configuration
+$Global:Config = Get-Config -Silent
 
-        # Apply the theme if configured and not disabled
-        if (-not $Global:Config.ThemeDisabled -and $Global:Config.ThemeName) {
-            Set-Theme -ThemeName $Global:Config.ThemeName -Silent
-        }
+if ($Global:Config.FileExists -eq $false) {
+    Write-Host ""
+    Write-Host "👋 Welcome to your enhanced PowerShell experience!" -ForegroundColor Cyan
+    Write-Host "⚡ To unlock the full potential of this profile, please run:" -ForegroundColor Green
+    Write-Host "   Install-Environment" -ForegroundColor Yellow
+    Write-Host "This will set up themes, icons, and additional features." -ForegroundColor Green
+    Write-Host ""
+} else {
+    Write-Host "✔️ Profile successfully loaded and ready to use." -ForegroundColor Green
+    Debug-Log "Configuration loaded successfully: $Global:Config" -Context "Configuration"
+
+    # Apply the theme if configured and not disabled
+    if (-not $Global:Config.ThemeDisabled -and $Global:Config.ThemeName) {
+        Set-Theme -ThemeName $Global:Config.ThemeName -Silent
     }
+}
 
     # Check and apply the history display mode
     if ($Global:Config.PSObject.Properties.Match("ShowHistoryAsList") -and $Global:Config.ShowHistoryAsList) {
