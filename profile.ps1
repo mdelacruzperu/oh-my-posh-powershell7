@@ -108,9 +108,12 @@ function Install-Environment {
                 # Reload the profile
                 Debug-Log -Message "Reloading profile: $PROFILE" -Context "Configuration"
                 & $PROFILE
-                Write-Host "🔄 Profile updated and reloaded successfully." -ForegroundColor Green
-                Write-Host "ℹ️ If you encounter issues, please restart your terminal." -ForegroundColor Yellow
-                return
+                Write-Host "✔️ The profile has been updated to the latest version and reloaded successfully." -ForegroundColor Green
+                Write-Host "⚠️ To ensure all changes are applied correctly, this terminal session will now close." -ForegroundColor Yellow
+                Write-Host "ℹ️ After reopening the terminal, please re-run the 'Update-Environment' command to complete the process." -ForegroundColor Cyan
+                Write-Host "Press any key to close the terminal..." -ForegroundColor Cyan
+                $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+                Stop-Process -Id $PID
             } else {
                 Write-Host "✔️ The PowerShell profile is already up to date. No changes needed." -ForegroundColor Green
             }
