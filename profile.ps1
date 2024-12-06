@@ -233,9 +233,15 @@ function Install-Environment {
         Write-Host "⚠️ Failed to save configuration. Some settings may not persist." -ForegroundColor Yellow
     }
 
-    & $PROFILE
-
     Write-Host ($Update ? "🎉 Update of the Oh My Posh environment is complete!" : "🎉 Installation of the Oh My Posh environment is complete!") -ForegroundColor Green
+
+    # Attempt to reload the profile
+    try {
+        & $PROFILE
+        Write-Host "✔️ The profile has been successfully reloaded." -ForegroundColor Green
+    } catch {
+        Write-Host "❌ Failed to reload the profile. Please restart your terminal manually to apply changes." -ForegroundColor Red
+    }
 }
 
 # Function: Update-Environment
