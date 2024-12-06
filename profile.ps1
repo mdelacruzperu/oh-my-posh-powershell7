@@ -68,21 +68,44 @@ function Install-Environment {
 
     # Step 1: Check and update the PowerShell profile if needed
     if ($Update) {
-        $FakeRemoteLastModified = Get-Date "2024-12-03T00:00:00Z"
-        $FakeProfileContent = @"
-# Simulated updated profile
-Write-Host 'This is a simulated updated profile' -ForegroundColor Cyan
-"@
+        # GitHub repository and file details
+        $ApiUrl = "https://api.github.com/repos/mdelacruzperu/oh-my-posh-powershell7/contents/profile.ps1"
+
+        # Temporary path for the downloaded profile
+        $TempProfilePath = Join-Path -Path $env:TEMP -ChildPath "temp_profile.ps1"
 
         try {
-            $LocalLastModified = (Get-Item $PROFILE).LastWriteTime
+            # Fetch file information from GitHub API
+            $Headers = @{
+                "Accept" = "application/vnd.github+json"
+                "User-Agent" = "PowerShell"
+            }
+            $Response = Invoke-RestMethod -Uri $ApiUrl -Method GET -Headers $Headers -ErrorAction Stop
 
-            if ($FakeRemoteLastModified -gt $LocalLastModified) {
+            # Extract the remote file's hash
+            if ($Response -and $Response.sha) {
+                $RemoteHash = $Response.sha
+            } else {
+                throw "Failed to retrieve the remote profile's hash."
+            }
+
+            # Calculate the local file's hash
+            $LocalHash = if (Test-Path $PROFILE) {
+                (Get-FileHash -Path $PROFILE -Algorithm SHA1).Hash
+            } else {
+                $null
+            }
+
+            # Compare the hashes
+            if ($LocalHash -ne $RemoteHash) {
                 Write-Host "🔄 A newer version of the PowerShell profile is available." -ForegroundColor Yellow
                 Write-Host "   Applying the updated profile now..." -ForegroundColor Cyan
 
-                $FakeProfileContent | Set-Content -Path $PROFILE -Force
+                # Download and replace the local profile
+                Invoke-WebRequest -Uri $Response.download_url -OutFile $TempProfilePath -ErrorAction Stop
+                Copy-Item -Path $TempProfilePath -Destination $PROFILE -Force
 
+                # Reload the profile
                 Debug-Log -Message "Reloading profile: $PROFILE" -Context "Configuration"
                 & $PROFILE
                 Write-Host "✔️ Profile updated and reloaded successfully." -ForegroundColor Green
@@ -93,7 +116,12 @@ Write-Host 'This is a simulated updated profile' -ForegroundColor Cyan
             }
         } catch {
             Write-Host "❌ Failed to verify or update the PowerShell profile. Error: $_" -ForegroundColor Red
-            Debug-Log -Message "Error during local profile update: $_" -Context "Error"
+            Debug-Log -Message "Error during profile update: $_" -Context "Error"
+        } finally {
+            # Clean up temporary file
+            if (Test-Path $TempProfilePath) {
+                Remove-Item -Path $TempProfilePath -Force
+            }
         }
     }
 
