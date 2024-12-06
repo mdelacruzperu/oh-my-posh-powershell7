@@ -68,54 +68,46 @@ function Install-Environment {
 
 # Step 1: Check and update the PowerShell profile if needed
 if ($Update) {
-    # GitHub raw file URL
-    $ProfileUrl = "https://raw.githubusercontent.com/mdelacruzperu/oh-my-posh-powershell7/main/profile.ps1"
-    $TempProfilePath = Join-Path -Path $env:TEMP -ChildPath "temp_profile.ps1"
-
     try {
-        # Download the profile file
-        Invoke-WebRequest -Uri $ProfileUrl -OutFile $TempProfilePath -ErrorAction Stop
+        # Define the remote profile URL and the temporary download path
+        $ProfileUrl = "https://raw.githubusercontent.com/mdelacruzperu/oh-my-posh-powershell7/main/profile.ps1"
+        $TempProfilePath = Join-Path -Path $env:TEMP -ChildPath "Microsoft.PowerShell_profile.ps1"
 
-        # Calculate hashes
-        $RemoteHash = (Get-FileHash -Path $TempProfilePath -Algorithm SHA1).Hash
+        # Calculate the local profile's hash if it exists
         $LocalHash = if (Test-Path $PROFILE) {
-            (Get-FileHash -Path $PROFILE -Algorithm SHA1).Hash
+            (Get-FileHash -Path $PROFILE -Algorithm SHA256).Hash
         } else {
             $null
         }
 
-        # Compare hashes and update if necessary
-        if ($LocalHash -ne $RemoteHash) {
+        # Download the remote profile to a temporary path
+        Invoke-WebRequest -Uri $ProfileUrl -OutFile $TempProfilePath -ErrorAction Stop
+
+        # Calculate the hash of the downloaded profile
+        $RemoteHash = (Get-FileHash -Path $TempProfilePath -Algorithm SHA256).Hash
+
+        # Compare hashes and update if they differ
+        if ($RemoteHash -ne $LocalHash) {
             Write-Host "🔄 A newer version of the PowerShell profile is available." -ForegroundColor Yellow
             Write-Host "   Applying the updated profile now..." -ForegroundColor Cyan
 
-            # Replace the local profile
+            # Replace the local profile with the downloaded one
             Copy-Item -Path $TempProfilePath -Destination $PROFILE -Force
 
-            # Reload the profile
-            Debug-Log -Message "Reloading profile: $PROFILE" -Context "Configuration"
-            & $PROFILE
             Write-Host "✔️ The profile has been updated to the latest version and reloaded successfully." -ForegroundColor Green
             Write-Host "⚠️ To ensure all changes are applied correctly, this terminal session will now close." -ForegroundColor Yellow
-            Write-Host "⚠️ After reopening the terminal, please re-run the 'Update-Environment' command to complete the process." -ForegroundColor Cyan
+            Write-Host "ℹ️ After reopening the terminal, please re-run the 'Update-Environment' command to complete the process." -ForegroundColor Cyan
             Write-Host "Press any key to close the terminal..." -ForegroundColor Cyan
 
             $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
-            try {
-                # Attempt to close the terminal gracefully
-                Exit
-            } catch {
-                # If graceful exit fails, forcefully stop the process
-                Stop-Process -Id $PID -Force
-            }
+            Stop-Process -Id $PID -Force
         } else {
             Write-Host "✔️ The PowerShell profile is already up to date. No changes needed." -ForegroundColor Green
         }
     } catch {
         Write-Host "❌ Failed to verify or update the PowerShell profile. Error: $_" -ForegroundColor Red
-        Debug-Log -Message "Error during profile update: $_" -Context "Error"
     } finally {
-        # Clean up temporary file
+        # Clean up the temporary file
         if (Test-Path $TempProfilePath) {
             Remove-Item -Path $TempProfilePath -Force
         }
