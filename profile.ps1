@@ -524,7 +524,6 @@ function Toggle-History-Mode {
     # Save the updated configuration
     Set-Config -Key "ShowHistoryAsList" -Value ($CurrentValue)
     Save-Config -Silent
-    #& $PROFILE
 }
 
 # Function: Edit-Custom-Profile
