@@ -3,7 +3,7 @@
 ### Developed collaboratively with OpenAI Assistant ###
 
 # Define global debug mode
-$DebugMode = $true
+$DebugMode = $false
 
 if ($DebugMode) {
     Write-Host "#######################################" -ForegroundColor Red
@@ -26,7 +26,7 @@ $Global:ConfigFile       = Join-Path -Path $Global:BaseDirectory -ChildPath "Env
 $Global:CacheFile        = Join-Path -Path $Global:BaseDirectory -ChildPath "RemoteThemesCache.json"
 $Global:ThemeDirectory   = Join-Path -Path $Global:BaseDirectory -ChildPath "Themes"
 # Global Lists
-$Global:DefaultThemes = @("jandedobbeleer","peru")
+$Global:DefaultThemes = @("peru","jandedobbeleer")
 $Global:ModulesToInstall = @(
     @{ Name = "Terminal-Icons"; Description = "Adds file icons to terminal output" }
 )
@@ -108,24 +108,14 @@ function Install-Environment {
         }
     }
 
-    # Step 2: Load or initialize configuration
+    # # Step 2: Ensure required parameters (in-memory only)
     try {
-        $Global:Config = Get-Config
+        # Set some parameters
+        Set-Config -Key "IsConfigured" -Value $true
+        Set-Config -Key "FileExists" -Value $true
+        Set-Config -Key "LastUpdateCheck" -Value ($Global:Config.LastUpdateCheck -or (Get-Date).ToString("o"))
 
-        if (-not $Global:Config) {
-            Write-Host "Configuration not found. Initializing default configuration..." -ForegroundColor Yellow
-            $Global:Config = [PSCustomObject]@{
-                ThemeName       = $Global:DefaultThemes[0]
-                IsConfigured    = $false
-                ThemeDisabled   = $false
-                FileExists      = $true
-                LastUpdateCheck = (Get-Date).ToString("o")
-            }
-            Save-Config -Config $Global:Config -Silent
-            Write-Host "✔️ Default configuration initialized and saved." -ForegroundColor Green
-        } else {
-            Write-Host "✔️ Configuration loaded successfully." -ForegroundColor Green
-        }
+        Write-Host "✔️ Configuration loaded or initialized successfully." -ForegroundColor Green
     } catch {
         Write-Host "❌ Critical error initializing configuration: $_" -ForegroundColor Red
         return
@@ -226,8 +216,10 @@ function Install-Environment {
 
     # Step 7: Finalize and save configuration
     try {
-        $Global:Config.IsConfigured = $true
-        Save-Config -Config $Global:Config -Silent
+        Set-Config -Key "FileExists" -Value $true
+        Set-Config -Key "IsConfigured" -Value $true
+        Set-Config -Key "ThemeName" -Value 'peru'
+        Save-Config -Silent
         Write-Host ($Update ? "✔️ Configuration updated successfully." : "✔️ Configuration initialized successfully.") -ForegroundColor Green
     } catch {
         Write-Host "⚠️ Failed to save configuration. Some settings may not persist." -ForegroundColor Yellow
@@ -417,7 +409,6 @@ function Set-Theme {
     # Apply the theme using Oh My Posh binary
     try {
         & $Global:BinaryPath init pwsh --config $ThemePath | Invoke-Expression
-        $Global:CurrentTheme = $ThemeName
         Debug-Log "Theme applied successfully: $ThemeName" -Context "Configuration"
 
         if (-not $Silent) {
@@ -430,8 +421,8 @@ function Set-Theme {
 
     # Save the theme to configuration
     try {
-        $Global:Config.ThemeName = $ThemeName
-        Save-Config -Silent -Config $Global:Config
+        Set-Config -Key "ThemeName" -Value $ThemeName
+        Save-Config -Silent
         Debug-Log "Theme configuration saved: $ThemeName" -Context "Configuration"
     } catch {
         Write-Host "❌ Failed to save theme configuration. Error: $_" -ForegroundColor Red
@@ -514,32 +505,26 @@ function List-Themes {
 # Function: Toggle-History-Mode
 # Description: Toggles the history display mode between list and default single-line.
 function Toggle-History-Mode {
-    # Ensure the configuration contains the 'ShowHistoryAsList' property
-    if (-not $Global:Config.PSObject.Properties["ShowHistoryAsList"]) {
-        Debug-Log "ℹ️ Adding missing 'ShowHistoryAsList' property to the configuration."
-        $Global:Config | Add-Member -MemberType NoteProperty -Name ShowHistoryAsList -Value $false -Force
-    }
+    param (
+        [switch]$Silent
+    )
 
     # Toggle the history mode
-    if ($Global:Config.ShowHistoryAsList -eq $true) {
-        $Global:Config.ShowHistoryAsList = $false
-        Debug-Log "🔄 History mode set to default (single-line)."
+    $CurrentValue = $Global:Config.ShowHistoryAsList -or $false # Default to false if not set
+    $CurrentValue = -not $CurrentValue
+
+    if ($CurrentValue) {
+        Set-PSReadLineOption -PredictionViewStyle ListView
+        if ( -not $Silent) { Write-Host "🔄 History mode set to list view." -ForegroundColor Yellow }
     } else {
-        $Global:Config.ShowHistoryAsList = $true
-        Write-Host "🔄 History mode set to list view." -ForegroundColor Yellow
+        Set-PSReadLineOption -PredictionViewStyle InlineView
+        if ( -not $Silent) { Write-Host "🔄 History mode set to default (single-line)." -ForegroundColor Yellow }
     }
 
     # Save the updated configuration
-    Save-Config -Config $Global:Config -Silent
-
-    # Reload the profile to apply changes
-    Write-Host "ℹ️ Reloading profile to apply the new history mode setting..." -ForegroundColor Cyan
-    try {
-        & $PROFILE
-        Write-Host "✔️ Profile successfully reloaded." -ForegroundColor Green
-    } catch {
-        Write-Host "❌ Failed to reload the profile. Please restart the terminal manually to apply changes." -ForegroundColor Red
-    }
+    Set-Config -Key "ShowHistoryAsList" -Value ($CurrentValue)
+    Save-Config -Silent
+    #& $PROFILE
 }
 
 # Function: Edit-Custom-Profile
@@ -727,54 +712,74 @@ function Get-Config {
     )
 
     $DefaultConfig = [PSCustomObject]@{
-        ThemeName       = "default"
-        IsConfigured    = $false
-        ThemeDisabled   = $false
-        FileExists      = $false
-        LastUpdateCheck = (Get-Date).ToString("o")
+        FileExists   = $false
+        IsConfigured = $false
+        ThemeName    = $Global:DefaultThemes[0] -or 'peru'
     }
 
     try {
-        # Attempt to load the configuration from file
         if (Test-Path $Global:ConfigFile) {
+            # Load configuration from file
             $Config = Get-Content -Path $Global:ConfigFile -ErrorAction Stop | ConvertFrom-Json
+
+            if ($Config -and -not $Config.PSObject.Properties["FileExists"]) {
+                $Config | Add-Member -MemberType NoteProperty -Name FileExists -Value $true
+            }
+
             Debug-Log "Configuration loaded from file: $Global:ConfigFile" -Context "Configuration"
             if (-not $Silent) {
                 Write-Host "✔️ Configuration loaded successfully from: $Global:ConfigFile" -ForegroundColor Green
             }
         } else {
             Debug-Log "No configuration file found. Default configuration will be used." -Context "Configuration"
+            $Config = $DefaultConfig
         }
     } catch {
         Debug-Log "Failed to load configuration. Error: $_" -Context "Error"
+        $Config = $DefaultConfig
     }
 
-    return $Config -or $DefaultConfig
+    return $Config
+}
+
+# Function: Set-Config
+# Description: Updates or adds a parameter to the global configuration dynamically.
+function Set-Config {
+    param (
+        [Parameter(Mandatory = $true)]
+        [string]$Key,  # The name of the parameter to update or add
+        $Value         # The value to assign to the parameter
+    )
+
+    if (-not $Global:Config.PSObject.Properties[$Key]) {
+        # Add the parameter if it doesn't exist
+        $Global:Config | Add-Member -MemberType NoteProperty -Name $Key -Value $Value
+        Debug-Log "Added parameter '$Key' with value '$Value' to configuration." -Context "Configuration"
+    } else {
+        # Update the parameter if it already exists
+        $Global:Config.$Key = $Value
+        Debug-Log "Updated parameter '$Key' to value '$Value' in configuration." -Context "Configuration"
+    }
 }
 
 # Function: Save-Config
-# Description: Saves configuration to a JSON file, ensuring format and directory creation.
+# Description: Saves the global configuration object to a JSON file.
 function Save-Config {
     param (
-        [Parameter(Mandatory = $true)]
-        [PSCustomObject]$Config,
         [switch]$Silent # Suppresses user-facing success messages if specified
     )
 
     try {
-        # Ensure the directory for the configuration file exists
         Ensure-Directory -DirectoryPath (Split-Path -Path $Global:ConfigFile -Parent)
-        
-        # Save the configuration to the file
-        $Config | ConvertTo-Json -Depth 10 | Out-File -FilePath $Global:ConfigFile -Encoding UTF8 -Force
-        
-        # Log the operation and show success message if not in silent mode
-        Debug-Log "Configuration saved successfully to: $Global:ConfigFile" -Context "Configuration"
+
+        # Save the global configuration to file
+        $Global:Config | ConvertTo-Json -Depth 10 | Out-File -FilePath $Global:ConfigFile -Encoding UTF8 -Force
+
+        Debug-Log "Global configuration saved to: $Global:ConfigFile" -Context "Configuration"
         if (-not $Silent) {
             Write-Host "✔️ Configuration saved successfully to: $Global:ConfigFile" -ForegroundColor Green
         }
     } catch {
-        # Handle errors and log them
         Debug-Log "Failed to save configuration. Error: $_" -Context "Error"
         Write-Host "❌ Failed to save configuration. Error: $_" -ForegroundColor Red
     }
@@ -879,28 +884,31 @@ try {
     # Validate or create base directory
     Ensure-Directory -DirectoryPath $Global:BaseDirectory
 
-# Load configuration
-$Global:Config = Get-Config -Silent
+    # Load configuration
+    $Global:Config = Get-Config -Silent
+    Debug-Log $Global:Config
 
-if ($Global:Config.FileExists -eq $false) {
-    Write-Host ""
-    Write-Host "👋 Welcome to your enhanced PowerShell experience!" -ForegroundColor Cyan
-    Write-Host "⚡ To unlock the full potential of this profile, please run:" -ForegroundColor Green
-    Write-Host "   Install-Environment" -ForegroundColor Yellow
-    Write-Host "This will set up themes, icons, and additional features." -ForegroundColor Green
-    Write-Host ""
-} else {
-    Write-Host "✔️ Profile successfully loaded and ready to use." -ForegroundColor Green
-    Debug-Log "Configuration loaded successfully: $Global:Config" -Context "Configuration"
+    if ($Global:Config.FileExists -eq $false) {
+        Write-Host ""
+        Write-Host "👋 Welcome to your enhanced PowerShell experience!" -ForegroundColor Cyan
+        Write-Host "⚡ To unlock the full potential of this profile, please run:" -ForegroundColor Green
+        Write-Host "   Install-Environment" -ForegroundColor Yellow
+        Write-Host "This will set up themes, icons, and additional features." -ForegroundColor Green
+        Write-Host ""
+        return
+    } else {
+        Write-Host "✔️ Profile successfully loaded and ready to use." -ForegroundColor Green
+        Debug-Log "Configuration loaded successfully: $Global:Config" -Context "Configuration"
 
-    # Apply the theme if configured and not disabled
-    if (-not $Global:Config.ThemeDisabled -and $Global:Config.ThemeName) {
+        # Apply the current configured theme
+        Debug-Log "Applying Theme: $Global:Config.ThemeName"
         Set-Theme -ThemeName $Global:Config.ThemeName -Silent
     }
-}
 
+    # Ensure 'ShowHistoryAsList' exists and set default if missing
+    $ShowHistoryAsList = $Global:Config.ShowHistoryAsList -or $false
     # Check and apply the history display mode
-    if ($Global:Config.PSObject.Properties.Match("ShowHistoryAsList") -and $Global:Config.ShowHistoryAsList) {
+    if ($ShowHistoryAsList) {
         Set-PSReadLineOption -PredictionViewStyle ListView
         Debug-Log "ℹ️ History mode set to list view as per configuration."
     } else {
