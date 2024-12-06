@@ -108,8 +108,8 @@ function Install-Environment {
                 # Reload the profile
                 Debug-Log -Message "Reloading profile: $PROFILE" -Context "Configuration"
                 & $PROFILE
-                Write-Host "✔️ Profile updated and reloaded successfully." -ForegroundColor Green
-                Write-Host "⚠️ Please re-execute your command to apply the new settings." -ForegroundColor Yellow
+                Write-Host "🔄 Profile updated and reloaded successfully." -ForegroundColor Green
+                Write-Host "ℹ️ If you encounter issues, please restart your terminal." -ForegroundColor Yellow
                 return
             } else {
                 Write-Host "✔️ The PowerShell profile is already up to date. No changes needed." -ForegroundColor Green
