@@ -97,7 +97,7 @@ if ($Update) {
             & $PROFILE
             Write-Host "✔️ The profile has been updated to the latest version and reloaded successfully." -ForegroundColor Green
             Write-Host "⚠️ To ensure all changes are applied correctly, this terminal session will now close." -ForegroundColor Yellow
-            Write-Host "ℹ️ After reopening the terminal, please re-run the 'Update-Environment' command to complete the process." -ForegroundColor Cyan
+            Write-Host "⚠️ After reopening the terminal, please re-run the 'Update-Environment' command to complete the process." -ForegroundColor Cyan
             Write-Host "Press any key to close the terminal..." -ForegroundColor Cyan
 
             $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
