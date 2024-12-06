@@ -66,67 +66,76 @@ function Install-Environment {
         return
     }
 
-    # Step 1: Check and update the PowerShell profile if needed
-    if ($Update) {
-        # GitHub repository and file details
-        $ApiUrl = "https://api.github.com/repos/mdelacruzperu/oh-my-posh-powershell7/contents/profile.ps1"
+# Step 1: Check and update the PowerShell profile if needed
+if ($Update) {
+    # GitHub repository and file details
+    $ApiUrl = "https://api.github.com/repos/mdelacruzperu/oh-my-posh-powershell7/contents/profile.ps1"
 
-        # Temporary path for the downloaded profile
-        $TempProfilePath = Join-Path -Path $env:TEMP -ChildPath "temp_profile.ps1"
+    # Temporary path for the downloaded profile
+    $TempProfilePath = Join-Path -Path $env:TEMP -ChildPath "temp_profile.ps1"
 
-        try {
-            # Fetch file information from GitHub API
-            $Headers = @{
-                "Accept" = "application/vnd.github+json"
-                "User-Agent" = "PowerShell"
+    try {
+        # Fetch file information from GitHub API
+        $Headers = @{
+            "Accept" = "application/vnd.github+json"
+            "User-Agent" = "PowerShell"
+        }
+        $Response = Invoke-RestMethod -Uri $ApiUrl -Method GET -Headers $Headers -ErrorAction Stop
+
+        # Extract the remote file's hash
+        if ($Response -and $Response.sha) {
+            $RemoteHash = $Response.sha
+        } else {
+            throw "Failed to retrieve the remote profile's hash."
+        }
+
+        # Calculate the local file's hash
+        $LocalHash = if (Test-Path $PROFILE) {
+            (Get-FileHash -Path $PROFILE -Algorithm SHA1).Hash
+        } else {
+            $null
+        }
+
+        # Compare the hashes
+        if ($LocalHash -ne $RemoteHash) {
+            Write-Host "🔄 A newer version of the PowerShell profile is available." -ForegroundColor Yellow
+            Write-Host "   Applying the updated profile now..." -ForegroundColor Cyan
+
+            # Download and replace the local profile
+            Invoke-WebRequest -Uri $Response.download_url -OutFile $TempProfilePath -ErrorAction Stop
+            Copy-Item -Path $TempProfilePath -Destination $PROFILE -Force
+
+            # Reload the profile
+            Debug-Log -Message "Reloading profile: $PROFILE" -Context "Configuration"
+            & $PROFILE
+
+            # Inform the user and close the terminal
+            Write-Host "✔️ The profile has been updated to the latest version and reloaded successfully." -ForegroundColor Green
+            Write-Host "⚠️ To ensure all changes are applied correctly, this terminal session will now close." -ForegroundColor Yellow
+            Write-Host "ℹ️ After reopening the terminal, please re-run the 'Update-Environment' command to complete the process." -ForegroundColor Cyan
+            Write-Host "Press any key to close the terminal..." -ForegroundColor Cyan
+
+            $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+            try {
+                # Attempt to close the terminal gracefully
+                Stop-Process -Id $PID -Force
+            } catch {
+                Write-Host "❌ Failed to close the terminal. Please close it manually." -ForegroundColor Red
             }
-            $Response = Invoke-RestMethod -Uri $ApiUrl -Method GET -Headers $Headers -ErrorAction Stop
-
-            # Extract the remote file's hash
-            if ($Response -and $Response.sha) {
-                $RemoteHash = $Response.sha
-            } else {
-                throw "Failed to retrieve the remote profile's hash."
-            }
-
-            # Calculate the local file's hash
-            $LocalHash = if (Test-Path $PROFILE) {
-                (Get-FileHash -Path $PROFILE -Algorithm SHA1).Hash
-            } else {
-                $null
-            }
-
-            # Compare the hashes
-            if ($LocalHash -ne $RemoteHash) {
-                Write-Host "🔄 A newer version of the PowerShell profile is available." -ForegroundColor Yellow
-                Write-Host "   Applying the updated profile now..." -ForegroundColor Cyan
-
-                # Download and replace the local profile
-                Invoke-WebRequest -Uri $Response.download_url -OutFile $TempProfilePath -ErrorAction Stop
-                Copy-Item -Path $TempProfilePath -Destination $PROFILE -Force
-
-                # Reload the profile
-                Debug-Log -Message "Reloading profile: $PROFILE" -Context "Configuration"
-                & $PROFILE
-                Write-Host "✔️ The profile has been updated to the latest version and reloaded successfully." -ForegroundColor Green
-                Write-Host "⚠️ To ensure all changes are applied correctly, this terminal session will now close." -ForegroundColor Yellow
-                Write-Host "ℹ️ After reopening the terminal, please re-run the 'Update-Environment' command to complete the process." -ForegroundColor Cyan
-                Write-Host "Press any key to close the terminal..." -ForegroundColor Cyan
-                $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
-                Stop-Process -Id $PID
-            } else {
-                Write-Host "✔️ The PowerShell profile is already up to date. No changes needed." -ForegroundColor Green
-            }
-        } catch {
-            Write-Host "❌ Failed to verify or update the PowerShell profile. Error: $_" -ForegroundColor Red
-            Debug-Log -Message "Error during profile update: $_" -Context "Error"
-        } finally {
-            # Clean up temporary file
-            if (Test-Path $TempProfilePath) {
-                Remove-Item -Path $TempProfilePath -Force
-            }
+            return
+        } else {
+            Write-Host "✔️ The PowerShell profile is already up to date. No changes needed." -ForegroundColor Green
+        }
+    } catch {
+        Write-Host "❌ Failed to verify or update the PowerShell profile. Error: $_" -ForegroundColor Red
+        Debug-Log -Message "Error during profile update: $_" -Context "Error"
+    } finally {
+        # Clean up temporary file
+        if (Test-Path $TempProfilePath) {
+            Remove-Item -Path $TempProfilePath -Force
         }
     }
+}
 
     # Step 2: Load or initialize configuration
     try {
