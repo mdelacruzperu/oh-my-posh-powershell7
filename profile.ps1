@@ -511,6 +511,37 @@ function List-Themes {
     }
 }
 
+# Function: Toggle-History-Mode
+# Description: Toggles the history display mode between list and default single-line.
+function Toggle-History-Mode {
+    # Ensure the configuration contains the 'ShowHistoryAsList' property
+    if (-not $Global:Config.PSObject.Properties["ShowHistoryAsList"]) {
+        Debug-Log "ℹ️ Adding missing 'ShowHistoryAsList' property to the configuration."
+        $Global:Config | Add-Member -MemberType NoteProperty -Name ShowHistoryAsList -Value $false -Force
+    }
+
+    # Toggle the history mode
+    if ($Global:Config.ShowHistoryAsList -eq $true) {
+        $Global:Config.ShowHistoryAsList = $false
+        Debug-Log "🔄 History mode set to default (single-line)."
+    } else {
+        $Global:Config.ShowHistoryAsList = $true
+        Write-Host "🔄 History mode set to list view." -ForegroundColor Yellow
+    }
+
+    # Save the updated configuration
+    Save-Config -Config $Global:Config -Silent
+
+    # Reload the profile to apply changes
+    Write-Host "ℹ️ Reloading profile to apply the new history mode setting..." -ForegroundColor Cyan
+    try {
+        & $PROFILE
+        Write-Host "✔️ Profile successfully reloaded." -ForegroundColor Green
+    } catch {
+        Write-Host "❌ Failed to reload the profile. Please restart the terminal manually to apply changes." -ForegroundColor Red
+    }
+}
+
 # Function: Edit-Custom-Profile
 # Description: Ensures the existence of a CustomProfile.ps1 file and opens it for the user to edit or create personal customizations.
 function Edit-Custom-Profile {
@@ -842,6 +873,15 @@ try {
         if (-not $Global:Config.ThemeDisabled -and $Global:Config.ThemeName) {
             Set-Theme -ThemeName $Global:Config.ThemeName -Silent
         }
+    }
+
+    # Check and apply the history display mode
+    if ($Global:Config.PSObject.Properties.Match("ShowHistoryAsList") -and $Global:Config.ShowHistoryAsList) {
+        Set-PSReadLineOption -PredictionViewStyle ListView
+        Debug-Log "ℹ️ History mode set to list view as per configuration."
+    } else {
+        Set-PSReadLineOption -PredictionViewStyle InlineView
+        Debug-Log "ℹ️ History mode set to default (single-line)."
     }
 
     # Import modules only if they are marked as installed in the configuration
