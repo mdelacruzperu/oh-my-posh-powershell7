@@ -26,7 +26,7 @@ $Global:ConfigFile       = Join-Path -Path $Global:BaseDirectory -ChildPath "Env
 $Global:CacheFile        = Join-Path -Path $Global:BaseDirectory -ChildPath "RemoteThemesCache.json"
 $Global:ThemeDirectory   = Join-Path -Path $Global:BaseDirectory -ChildPath "Themes"
 # Global Lists
-$Global:DefaultThemes = @("peru")
+$Global:DefaultThemes = @("jandedobbeleer","peru")
 $Global:ModulesToInstall = @(
     @{ Name = "Terminal-Icons"; Description = "Adds file icons to terminal output" }
 )
