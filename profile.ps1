@@ -115,7 +115,7 @@ function Install-Environment {
         Set-Config -Key "FileExists" -Value $true
         Set-Config -Key "LastUpdateCheck" -Value ($Global:Config.LastUpdateCheck -or (Get-Date).ToString("o"))
 
-        Write-Host "✔️ Configuration loaded or initialized successfully." -ForegroundColor Green
+        Write-Host "✔️ Configuration loaded and initialized successfully." -ForegroundColor Green
     } catch {
         Write-Host "❌ Critical error initializing configuration: $_" -ForegroundColor Red
         return
@@ -124,18 +124,29 @@ function Install-Environment {
     # Step 3: Update or install Oh My Posh binary
     try {
         $DownloadUrl = "https://github.com/JanDeDobbeleer/oh-my-posh/releases/latest/download/posh-windows-amd64.exe"
+        $BinaryDirectory = Split-Path -Path $Global:BinaryPath -Parent
+        $TempBinaryPath = Join-Path -Path $env:TEMP -ChildPath "oh-my-posh.tmp"
+
+        # Ensure the binary directory exists
+        Ensure-Directory -DirectoryPath $BinaryDirectory
 
         if (-not (Test-Path $Global:BinaryPath)) {
             Write-Host "Downloading Oh My Posh binary for first-time installation..." -ForegroundColor Cyan
-            New-Item -ItemType Directory -Path (Split-Path -Path $Global:BinaryPath -Parent) -Force | Out-Null
             Invoke-WebRequest -Uri $DownloadUrl -OutFile $Global:BinaryPath -ErrorAction Stop
             Write-Host "✔️ Oh My Posh binary installed successfully." -ForegroundColor Green
         } else {
             Write-Host "Verifying and updating Oh My Posh binary if necessary..." -ForegroundColor Cyan
-            $RemoteBinary = Invoke-WebRequest -Uri $DownloadUrl -Method HEAD -ErrorAction Stop
-            $LocalBinary = Get-Item $Global:BinaryPath
-            if ($RemoteBinary.Headers."Content-Length" -ne $LocalBinary.Length) {
-                Invoke-WebRequest -Uri $DownloadUrl -OutFile $Global:BinaryPath -ErrorAction Stop
+
+            # Download the remote binary to a temporary path
+            Invoke-WebRequest -Uri $DownloadUrl -OutFile $TempBinaryPath -ErrorAction Stop
+
+            # Calculate hashes
+            $LocalHash = (Get-FileHash -Path $Global:BinaryPath -Algorithm SHA256).Hash
+            $RemoteHash = (Get-FileHash -Path $TempBinaryPath -Algorithm SHA256).Hash
+
+            # Compare and update if necessary
+            if ($RemoteHash -ne $LocalHash) {
+                Copy-Item -Path $TempBinaryPath -Destination $Global:BinaryPath -Force
                 Write-Host "✔️ Oh My Posh binary updated successfully." -ForegroundColor Green
             } else {
                 Write-Host "✔️ Oh My Posh binary is already up to date." -ForegroundColor Green
@@ -143,17 +154,37 @@ function Install-Environment {
         }
     } catch {
         Write-Host "⚠️ Failed to install or update Oh My Posh binary. Check your internet connection or permissions." -ForegroundColor Red
+        Debug-Log "Error during binary installation/update: $_" -Context "Error"
+    } finally {
+        # Clean up temporary file
+        if (Test-Path $TempBinaryPath) {
+            Remove-Item -Path $TempBinaryPath -Force
+            Debug-Log "Temporary file cleaned up: $TempBinaryPath" -Context "FileSystem"
+        }
     }
 
     # Step 4: Update or install modules
     foreach ($Module in $Global:ModulesToInstall) {
-        Write-Host "Installing or updating module $($Module.Name)..." -ForegroundColor Cyan
+        Write-Host "Processing module $($Module.Name)..." -ForegroundColor Cyan
         try {
-            if (Get-InstalledModule -Name $Module.Name -ErrorAction SilentlyContinue) {
+            # Check if the module is already installed
+            $InstalledModule = Get-InstalledModule -Name $Module.Name -ErrorAction SilentlyContinue
+
+            if ($InstalledModule) {
                 Write-Host "Module $($Module.Name) is already installed. Checking for updates..." -ForegroundColor Yellow
-                Update-Module -Name $Module.Name -Scope CurrentUser -Force -ErrorAction SilentlyContinue
-                Write-Host "✔️ Module $($Module.Name) is up to date." -ForegroundColor Green
+                
+                # Check the latest version available in the repository
+                $RepositoryModule = Find-Module -Name $Module.Name -ErrorAction SilentlyContinue
+                if ($RepositoryModule -and $RepositoryModule.Version -gt $InstalledModule.Version) {
+                    Write-Host "Updating module $($Module.Name) to version $($RepositoryModule.Version)..." -ForegroundColor Cyan
+                    Update-Module -Name $Module.Name -Scope CurrentUser -Force -ErrorAction Stop
+                    Write-Host "✔️ Module $($Module.Name) updated to version $($RepositoryModule.Version)." -ForegroundColor Green
+                } else {
+                    Write-Host "✔️ Module $($Module.Name) is already up to date (version $($InstalledModule.Version))." -ForegroundColor Green
+                }
             } else {
+                # Install the module if not installed
+                Write-Host "Installing module $($Module.Name)..." -ForegroundColor Cyan
                 Install-Module -Name $Module.Name -Scope CurrentUser -Force -ErrorAction Stop
                 Write-Host "✔️ Module $($Module.Name) installed successfully." -ForegroundColor Green
             }
@@ -885,7 +916,6 @@ try {
 
     # Load configuration
     $Global:Config = Get-Config -Silent
-    Debug-Log $Global:Config
 
     if ($Global:Config.FileExists -eq $false) {
         Write-Host ""
@@ -895,14 +925,10 @@ try {
         Write-Host "This will set up themes, icons, and additional features." -ForegroundColor Green
         Write-Host ""
         return
-    } else {
-        Write-Host "✔️ Profile successfully loaded and ready to use." -ForegroundColor Green
-        Debug-Log "Configuration loaded successfully: $Global:Config" -Context "Configuration"
-
-        # Apply the current configured theme
-        Debug-Log "Applying Theme: $Global:Config.ThemeName"
-        Set-Theme -ThemeName $Global:Config.ThemeName -Silent
     }
+
+    # Apply the current configured theme
+    Set-Theme -ThemeName $Global:Config.ThemeName -Silent
 
     # Ensure 'ShowHistoryAsList' exists and set default if missing
     $ShowHistoryAsList = $Global:Config.ShowHistoryAsList -or $false
@@ -920,9 +946,7 @@ try {
         foreach ($Module in $Global:ModulesToInstall) {
             try {
                 Import-Module -Name $Module.Name -ErrorAction Stop
-                Debug-Log "Module '$($Module.Name)' imported successfully." -Context "Startup"
             } catch {
-                Debug-Log "Failed to import module '$($Module.Name)'. Error: $_" -Context "Error"
                 Write-Host "⚠️ Failed to import module '$($Module.Name)'. It may not be installed." -ForegroundColor Yellow
             }
         }
@@ -934,7 +958,8 @@ try {
         Write-Host "✔️ Loading custom profile: $CustomProfilePath" -ForegroundColor Green
         & $CustomProfilePath
     }
+
+    Write-Host "✔️ Profile successfully loaded and ready to use." -ForegroundColor Green
 } catch {
     Write-Host "❌ Error during profile setup: $_" -ForegroundColor Red
-    Debug-Log "Error during profile setup: $_" -Context "Error"
 }
