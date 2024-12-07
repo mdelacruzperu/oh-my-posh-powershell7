@@ -89,7 +89,7 @@ function Install-Environment {
             $RemoteHash = (Get-FileHash -Path $TempProfilePath -Algorithm SHA256).Hash
 
             # Compare hashes and update if they differ
-            if ($RemoteHash -ne $LocalHash) {
+            if ( $RemoteHash -ne $LocalHash) {
                 Write-Host "🔄 Updating PowerShell profile..." -ForegroundColor Cyan
                 Copy-Item -Path $TempProfilePath -Destination $PROFILE -Force
                 Write-Host "✔️ Profile updated successfully." -ForegroundColor Green
@@ -156,8 +156,8 @@ function Install-Environment {
                 $RepositoryModule = Find-Module -Name $Module.Name -ErrorAction SilentlyContinue
                 if ($RepositoryModule -and $RepositoryModule.Version -gt $InstalledModule.Version) {
                     Update-Module -Name $Module.Name -Scope CurrentUser -Force -ErrorAction Stop
-                    $RequiresRestart = $true  # Profile changes require a restart
                     Write-Host "✔️ Module $($Module.Name) updated." -ForegroundColor Green
+                    $RequiresRestart = $true  # Profile changes require a restart
                 } else {
                     Write-Host "✔️ Module $($Module.Name) is already up to date." -ForegroundColor Green
                 }
