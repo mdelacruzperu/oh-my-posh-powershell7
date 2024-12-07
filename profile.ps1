@@ -171,7 +171,7 @@ function Install-Environment {
             $InstalledModule = Get-InstalledModule -Name $Module.Name -ErrorAction SilentlyContinue
 
             if ($InstalledModule) {
-                Write-Host "Module $($Module.Name) is already installed. Checking for updates..." -ForegroundColor Yellow
+                Write-Host "Module $($Module.Name) is already installed (version $($InstalledModule.Version)). Checking for updates..." -ForegroundColor Yellow
                 
                 # Check the latest version available in the repository
                 $RepositoryModule = Find-Module -Name $Module.Name -ErrorAction SilentlyContinue
