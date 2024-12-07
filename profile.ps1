@@ -47,6 +47,8 @@ function Install-Environment {
         [switch]$Update   # Indicates whether the action is an update
     )
 
+    $RequiresRestart = $false  # Indicator for actions requiring a restart
+
     # Step 0: Validate the operation and prepare the environment
     Write-Host "🔄 Starting operation..." -ForegroundColor Cyan
 
@@ -88,23 +90,17 @@ function Install-Environment {
 
             # Compare hashes and update if they differ
             if ($RemoteHash -ne $LocalHash) {
-                Write-Host "🔄 A newer version of the PowerShell profile is available." -ForegroundColor Yellow
-                Write-Host "   Applying the updated profile now..." -ForegroundColor Cyan
-
-                # Replace the local profile with the downloaded one
+                Write-Host "🔄 Updating PowerShell profile..." -ForegroundColor Cyan
                 Copy-Item -Path $TempProfilePath -Destination $PROFILE -Force
-
-                Write-Host "✔️ The profile has been updated to the latest version." -ForegroundColor Green
+                Write-Host "✔️ Profile updated successfully." -ForegroundColor Green
+                $RequiresRestart = $true  # Profile changes require a restart
             } else {
                 Write-Host "✔️ The PowerShell profile is already up to date. No changes needed." -ForegroundColor Green
             }
         } catch {
-            Write-Host "❌ Failed to verify or update the PowerShell profile. Error: $_" -ForegroundColor Red
+            Write-Host "❌ Failed to update PowerShell profile. Error: $_" -ForegroundColor Red
         } finally {
-            # Clean up the temporary file
-            if (Test-Path $TempProfilePath) {
-                Remove-Item -Path $TempProfilePath -Force
-            }
+            if (Test-Path $TempProfilePath) { Remove-Item -Path $TempProfilePath -Force }
         }
     }
 
@@ -114,8 +110,6 @@ function Install-Environment {
         Set-Config -Key "IsConfigured" -Value $true
         Set-Config -Key "FileExists" -Value $true
         Set-Config -Key "LastUpdateCheck" -Value ($Global:Config.LastUpdateCheck -or (Get-Date).ToString("o"))
-
-        Write-Host "✔️ Configuration loaded and initialized successfully." -ForegroundColor Green
     } catch {
         Write-Host "❌ Critical error initializing configuration: $_" -ForegroundColor Red
         return
@@ -127,69 +121,52 @@ function Install-Environment {
         $BinaryDirectory = Split-Path -Path $Global:BinaryPath -Parent
         $TempBinaryPath = Join-Path -Path $env:TEMP -ChildPath "oh-my-posh.tmp"
 
-        # Ensure the binary directory exists
         Ensure-Directory -DirectoryPath $BinaryDirectory
 
         if (-not (Test-Path $Global:BinaryPath)) {
             Write-Host "Downloading Oh My Posh binary for first-time installation..." -ForegroundColor Cyan
             Invoke-WebRequest -Uri $DownloadUrl -OutFile $Global:BinaryPath -ErrorAction Stop
-            Write-Host "✔️ Oh My Posh binary installed successfully." -ForegroundColor Green
+            Write-Host "✔️ Binary installed successfully." -ForegroundColor Green
+            $RequiresRestart = $true  # New binary installation requires a restart
         } else {
-            Write-Host "Verifying and updating Oh My Posh binary if necessary..." -ForegroundColor Cyan
-
-            # Download the remote binary to a temporary path
+            Write-Host "Verifying binary..." -ForegroundColor Cyan
             Invoke-WebRequest -Uri $DownloadUrl -OutFile $TempBinaryPath -ErrorAction Stop
-
-            # Calculate hashes
             $LocalHash = (Get-FileHash -Path $Global:BinaryPath -Algorithm SHA256).Hash
             $RemoteHash = (Get-FileHash -Path $TempBinaryPath -Algorithm SHA256).Hash
 
-            # Compare and update if necessary
             if ($RemoteHash -ne $LocalHash) {
                 Copy-Item -Path $TempBinaryPath -Destination $Global:BinaryPath -Force
-                Write-Host "✔️ Oh My Posh binary updated successfully." -ForegroundColor Green
+                Write-Host "✔️ Binary updated successfully." -ForegroundColor Green
+                $RequiresRestart = $true  # Binary updates require a restart
             } else {
-                Write-Host "✔️ Oh My Posh binary is already up to date." -ForegroundColor Green
+                Write-Host "✔️ Binary is already up to date." -ForegroundColor Green
             }
         }
     } catch {
-        Write-Host "⚠️ Failed to install or update Oh My Posh binary. Check your internet connection or permissions." -ForegroundColor Red
-        Debug-Log "Error during binary installation/update: $_" -Context "Error"
+        Write-Host "⚠️ Failed to update binary. Error: $_" -ForegroundColor Red
     } finally {
-        # Clean up temporary file
-        if (Test-Path $TempBinaryPath) {
-            Remove-Item -Path $TempBinaryPath -Force
-            Debug-Log "Temporary file cleaned up: $TempBinaryPath" -Context "FileSystem"
-        }
+        if (Test-Path $TempBinaryPath) { Remove-Item -Path $TempBinaryPath -Force }
     }
 
     # Step 4: Update or install modules
     foreach ($Module in $Global:ModulesToInstall) {
-        Write-Host "Processing module $($Module.Name)..." -ForegroundColor Cyan
         try {
-            # Check if the module is already installed
             $InstalledModule = Get-InstalledModule -Name $Module.Name -ErrorAction SilentlyContinue
-
             if ($InstalledModule) {
-                Write-Host "Module $($Module.Name) is already installed (version $($InstalledModule.Version)). Checking for updates..." -ForegroundColor Yellow
-                
-                # Check the latest version available in the repository
                 $RepositoryModule = Find-Module -Name $Module.Name -ErrorAction SilentlyContinue
                 if ($RepositoryModule -and $RepositoryModule.Version -gt $InstalledModule.Version) {
-                    Write-Host "Updating module $($Module.Name) to version $($RepositoryModule.Version)..." -ForegroundColor Cyan
                     Update-Module -Name $Module.Name -Scope CurrentUser -Force -ErrorAction Stop
-                    Write-Host "✔️ Module $($Module.Name) updated to version $($RepositoryModule.Version)." -ForegroundColor Green
+                    $RequiresRestart = $true  # Profile changes require a restart
+                    Write-Host "✔️ Module $($Module.Name) updated." -ForegroundColor Green
                 } else {
-                    Write-Host "✔️ Module $($Module.Name) is already up to date (version $($InstalledModule.Version))." -ForegroundColor Green
+                    Write-Host "✔️ Module $($Module.Name) is already up to date." -ForegroundColor Green
                 }
             } else {
-                # Install the module if not installed
-                Write-Host "Installing module $($Module.Name)..." -ForegroundColor Cyan
                 Install-Module -Name $Module.Name -Scope CurrentUser -Force -ErrorAction Stop
-                Write-Host "✔️ Module $($Module.Name) installed successfully." -ForegroundColor Green
+                Write-Host "✔️ Module $($Module.Name) installed." -ForegroundColor Green
             }
         } catch {
-            Write-Host "⚠️ Failed to install or update module $($Module.Name). Error: $_" -ForegroundColor Red
+            Write-Host "⚠️ Failed to process module $($Module.Name). Error: $_" -ForegroundColor Red
         }
     }
 
@@ -259,18 +236,17 @@ function Install-Environment {
     Write-Host ($Update ? "🎉 Update of the Oh My Posh environment is complete!" : "🎉 Installation of the Oh My Posh environment is complete!") -ForegroundColor Green
 
     # Attempt to reload the profile by restarting PowerShell
-    try {
-        Write-Host "Restarting PowerShell is required to apply changes completely." -ForegroundColor Cyan
-        Write-Host "Press any key to restart PowerShell or close this window manually if needed..." -ForegroundColor Yellow
-        [void][System.Console]::ReadKey($true) # Wait for user input
-        
-        # Start a new instance of PowerShell with the profile loaded
-        Start-Process -FilePath "pwsh.exe" -ArgumentList "-NoExit", "-Command & '$PROFILE'"
-        
-        Write-Host "Closing current session..." -ForegroundColor Cyan
-        exit
-    } catch {
-        Write-Host "❌ Failed to restart PowerShell. Please reopen manually." -ForegroundColor Red
+    if ( $RequiresRestart ) {
+        try {
+            Write-Host "A restart of PowerShell is required to apply changes fully." -ForegroundColor Cyan
+            Write-Host "Press any key to close this session and reopen PowerShell manually." -ForegroundColor Yellow
+            [void][System.Console]::ReadKey($true)
+            exit
+        } catch {
+            Write-Host "❌ Failed to restart PowerShell. Please restart manually." -ForegroundColor Red
+        }
+    } else {
+        Write-Host "No restart is required. Environment is ready to use!" -ForegroundColor Green
     }
 }
 
