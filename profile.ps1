@@ -258,12 +258,19 @@ function Install-Environment {
 
     Write-Host ($Update ? "🎉 Update of the Oh My Posh environment is complete!" : "🎉 Installation of the Oh My Posh environment is complete!") -ForegroundColor Green
 
-    # Attempt to reload the profile
+    # Attempt to reload the profile by restarting PowerShell
     try {
-        & $PROFILE
-        Write-Host "✔️ The profile has been successfully reloaded." -ForegroundColor Green
+        Write-Host "Restarting PowerShell is required to apply changes completely." -ForegroundColor Cyan
+        Write-Host "Press any key to restart PowerShell or close this window manually if needed..." -ForegroundColor Yellow
+        [void][System.Console]::ReadKey($true) # Wait for user input
+        
+        # Start a new instance of PowerShell with the profile loaded
+        Start-Process -FilePath "pwsh.exe" -ArgumentList "-NoExit", "-Command & '$PROFILE'"
+        
+        Write-Host "Closing current session..." -ForegroundColor Cyan
+        exit
     } catch {
-        Write-Host "❌ Failed to reload the profile. Please restart your terminal manually to apply changes." -ForegroundColor Red
+        Write-Host "❌ Failed to restart PowerShell. Please reopen manually." -ForegroundColor Red
     }
 }
 
