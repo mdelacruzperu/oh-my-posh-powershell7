@@ -601,15 +601,14 @@ function Show-Help {
     Write-Host "3. Set-Theme               : Applies a specific Oh My Posh theme. Example: 'Set-Theme -ThemeName peru'." -ForegroundColor Cyan
     Write-Host "4. List-Themes             : Lists available themes. Use '-Remote' for remote themes, and '-Force' to refresh cache." -ForegroundColor Cyan
     Write-Host "5. Uninstall-Environment   : Uninstalls the environment, removing binary, modules, themes, and configurations." -ForegroundColor Cyan
-    Write-Host "6. Edit-Custom-Profile     : Creates or edits a custom profile script for user-defined functions." -ForegroundColor Cyan
+    Write-Host "6. Toggle-History-Mode     : Toggles the history display mode between list and default single-line." -ForegroundColor Cyan
+    Write-Host "7. Edit-Custom-Profile     : Creates or edits a custom profile script for user-defined functions." -ForegroundColor Cyan
 
-    Write-Host "`nExamples of usage:" -ForegroundColor Green
-    Write-Host "  Install-Environment" -ForegroundColor Yellow
-    Write-Host "  Update-Environment" -ForegroundColor Yellow
+    Write-Host "`nExamples of how to use functions with parameters:" -ForegroundColor Green
+    Write-Host "  Set-Theme peru" -ForegroundColor Yellow
+    Write-Host "  Set-Theme -ThemeName 'peru'" -ForegroundColor Yellow
     Write-Host "  Set-Theme -ThemeName peru" -ForegroundColor Yellow
-    Write-Host "  List-Themes -Remote -Force" -ForegroundColor Yellow
-    Write-Host "  Edit-Custom-Profile" -ForegroundColor Yellow
-
+    
     Write-Host "`nAdditional Tips:" -ForegroundColor Green
     Write-Host "✔️ Ensure the environment is installed before running commands like 'Set-Theme' or 'List-Themes'." -ForegroundColor Magenta
     Write-Host "✔️ Use 'Edit-Custom-Profile' to define your own functions without risking conflicts during updates." -ForegroundColor Magenta
