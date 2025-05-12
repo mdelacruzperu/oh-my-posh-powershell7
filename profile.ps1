@@ -564,7 +564,9 @@ function Edit-Custom-Profile {
 
 # Example Function:
 function Greet-Me {
-    Write-Host "Hello, $env:USERNAME! Welcome to your custom PowerShell environment!" -ForegroundColor Cyan
+    $user = $env:USERNAME
+    $emoji = "😎", "🚀", "💻", "🎯", "🔥", "🧠" | Get-Random
+    Write-Host "$emoji Welcome back, $user! Ready to get things done?" -ForegroundColor Green
 }
 
 # Remember: Save your changes and reload the profile with `. $PROFILE` or restart PowerShell.
@@ -595,20 +597,26 @@ function Greet-Me {
 function Show-Help {
     Write-Host "`n=== Help: PowerShell Environment Commands ===`n" -ForegroundColor Cyan
 
-    Write-Host "Commands available for managing your PowerShell environment:" -ForegroundColor Green
-    Write-Host "1. Install-Environment     : Installs the Oh My Posh environment, including binary, modules, and themes." -ForegroundColor Cyan
-    Write-Host "2. Update-Environment      : Updates the environment if already installed." -ForegroundColor Cyan
-    Write-Host "3. Set-Theme               : Applies a specific Oh My Posh theme. Example: 'Set-Theme -ThemeName peru'." -ForegroundColor Cyan
-    Write-Host "4. List-Themes             : Lists available themes. Use '-Remote' for remote themes, and '-Force' to refresh cache." -ForegroundColor Cyan
-    Write-Host "5. Uninstall-Environment   : Uninstalls the environment, removing binary, modules, themes, and configurations." -ForegroundColor Cyan
-    Write-Host "6. Toggle-History-Mode     : Toggles the history display mode between list and default single-line." -ForegroundColor Cyan
-    Write-Host "7. Edit-Custom-Profile     : Creates or edits a custom profile script for user-defined functions." -ForegroundColor Cyan
+    Write-Host "Core environment management commands (Oh My Posh):" -ForegroundColor Green
+    Write-Host "1.  Install-Environment     : Installs the Oh My Posh environment, including binary, modules, and themes." -ForegroundColor Cyan
+    Write-Host "2.  Update-Environment      : Updates the environment if already installed." -ForegroundColor Cyan
+    Write-Host "3.  Set-Theme               : Applies a specific Oh My Posh theme. Example: 'Set-Theme -ThemeName peru'." -ForegroundColor Cyan
+    Write-Host "4.  List-Themes             : Lists available themes. Use '-Remote' for remote themes, and '-Force' to refresh cache." -ForegroundColor Cyan
+    Write-Host "5.  Uninstall-Environment   : Uninstalls the environment, removing binary, modules, themes, and configurations." -ForegroundColor Cyan
+    Write-Host "6.  Toggle-History-Mode     : Toggles the history display mode between list and default single-line." -ForegroundColor Cyan
+    Write-Host "7.  Edit-Custom-Profile     : Creates or edits a custom profile script for user-defined functions." -ForegroundColor Cyan
+
+    Write-Host "`nUser-level utility functions:" -ForegroundColor Green
+    Write-Host "8.  Compare-Directories     : Compares two folders and shows differences (missing, modified, extra files)." -ForegroundColor Cyan
+    Write-Host "9.  Get-Public-IP           : Displays the current public IP address using OpenDNS." -ForegroundColor Cyan
+    Write-Host "10. Uptime                  : Shows system uptime and last boot time." -ForegroundColor Cyan
+    Write-Host "11. Get-System-Info         : Displays OS version, architecture, and memory information." -ForegroundColor Cyan
 
     Write-Host "`nExamples of how to use functions with parameters:" -ForegroundColor Green
     Write-Host "  Set-Theme peru" -ForegroundColor Yellow
     Write-Host "  Set-Theme -ThemeName 'peru'" -ForegroundColor Yellow
     Write-Host "  Set-Theme -ThemeName peru" -ForegroundColor Yellow
-    
+
     Write-Host "`nAdditional Tips:" -ForegroundColor Green
     Write-Host "✔️ Ensure the environment is installed before running commands like 'Set-Theme' or 'List-Themes'." -ForegroundColor Magenta
     Write-Host "✔️ Use 'Edit-Custom-Profile' to define your own functions without risking conflicts during updates." -ForegroundColor Magenta
@@ -876,6 +884,101 @@ function Get-System-Info {
     }
 }
 
+# ==================================================================================================
+# Function: Compare-Directories
+# Description: Compares the contents of two directories and reports differences from the destination's
+#              perspective. Detects missing, modified, or extra files based on the source directory.
+#              Uses SHA256 hash comparison to verify file integrity.
+#
+# Parameters:
+#   -Source <string>           : Full path to the source (reference) directory.
+#   -Destination <string>      : Full path to the destination directory to verify.
+#   -ExcludeFolders <string[]> : (Optional) List of folder names or fragments to exclude in both trees.
+#   -ShowHash <switch>         : (Optional) Displays SHA256 hashes in the output for audit purposes.
+#
+# Output:
+#   - Status        : Visual status (🟢 MISSING, 🟡 MODIFIED, 🔴 EXTRA)
+#   - RelativePath  : File path relative to root
+#   - Location      : Full path of the detected file
+#   - Hash (opt)    : SHA256 hash of the file (if -ShowHash is enabled)
+#
+# Example:
+#   Compare-Directories `
+#     -Source "C:\source\folder" `
+#     -Destination "C:\destination\folder" `
+#     -ExcludeFolders @(".idea", "vendor", "var") `
+#     -ShowHash
+#
+# ==================================================================================================
+function Compare-Directories {
+    param(
+        [Parameter(Mandatory = $true)][string]$Source,
+        [Parameter(Mandatory = $true)][string]$Destination,
+        [string[]]$ExcludeFolders = @(),
+        [switch]$ShowHash
+    )
+
+    function Get-FilteredFiles {
+        param($RootPath, $Exclude)
+
+        Get-ChildItem -Recurse -File -Path $RootPath | Where-Object {
+            $relativePath = $_.FullName.Substring($RootPath.Length)
+            -not ($Exclude | Where-Object { $relativePath -like "*$_*" })
+        } | ForEach-Object {
+            $_ | Add-Member -NotePropertyName RelativePath -NotePropertyValue ($_.FullName.Substring($RootPath.Length)) -PassThru
+        }
+    }
+
+    $sourceFiles = Get-FilteredFiles -RootPath $Source -Exclude $ExcludeFolders
+    $destFiles   = Get-FilteredFiles -RootPath $Destination -Exclude $ExcludeFolders
+
+    $sourceHashes = @{}
+    $sourceFiles | ForEach-Object {
+        $sourceHashes[$_.RelativePath] = [PSCustomObject]@{
+            Path = $_.FullName
+            Hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash
+        }
+    }
+
+    $results = @()
+
+    foreach ($dest in $destFiles) {
+        $rel = $dest.RelativePath
+        $destHash = (Get-FileHash $dest.FullName -Algorithm SHA256).Hash
+
+        if ($sourceHashes.ContainsKey($rel)) {
+            $src = $sourceHashes[$rel]
+            if ($src.Hash -ne $destHash) {
+                $results += [PSCustomObject]@{
+                    Status        = "🟡 MODIFIED"
+                    RelativePath  = $rel
+                    Location      = $dest.FullName
+                    Hash          = $ShowHash ? $destHash : $null
+                }
+            }
+            $sourceHashes.Remove($rel)
+        } else {
+            $results += [PSCustomObject]@{
+                Status        = "🔴 EXTRA"
+                RelativePath  = $rel
+                Location      = $dest.FullName
+                Hash          = $ShowHash ? $destHash : $null
+            }
+        }
+    }
+
+    foreach ($remaining in $sourceHashes.Keys) {
+        $results += [PSCustomObject]@{
+            Status        = "🟢 MISSING"
+            RelativePath  = $remaining
+            Location      = $sourceHashes[$remaining].Path
+            Hash          = $ShowHash ? $sourceHashes[$remaining].Hash : $null
+        }
+    }
+
+    $results | Sort-Object RelativePath | Format-Table -AutoSize
+}
+
 # ------------------------------------
 # Define your aliases from here
 # Use Get-Alias to check for existents aliases
@@ -938,7 +1041,7 @@ try {
     $CustomProfilePath = Join-Path -Path (Split-Path -Parent $PROFILE) -ChildPath "CustomProfile.ps1"
     if (Test-Path $CustomProfilePath) {
         Write-Host "✔️ Loading custom profile: $CustomProfilePath" -ForegroundColor Green
-        & $CustomProfilePath
+        . $CustomProfilePath
     }
 
     Write-Host "✔️ Profile successfully loaded and ready to use." -ForegroundColor Green
